@@ -9,25 +9,30 @@ function getDb() {
   const url = process.env.TURSO_DATABASE_URL;
   const authToken = process.env.TURSO_AUTH_TOKEN;
 
-  if (!url || !authToken) {
-    console.warn('Missing TURSO_DATABASE_URL or TURSO_AUTH_TOKEN environment variables.');
+  if (url && authToken) {
+    client = createClient({
+      url: url,
+      authToken: authToken
+    });
+    console.log('🔗 Connecting to Turso Cloud Database');
+  } else {
+    // Fallback to local SQLite file for development
+    console.warn('⚠️  No Turso credentials found. Falling back to local SQLite file.');
+    const fs = require('fs');
+    const path = require('path');
+    const DB_PATH = path.join(__dirname, '..', 'data', 'linkedin_manager.db');
+    fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+    
+    client = createClient({
+      url: `file:${DB_PATH}`
+    });
   }
-
-  client = createClient({
-    url: url || 'libsql://dummy.turso.io',
-    authToken: authToken || 'dummy-token'
-  });
 
   return client;
 }
 
 async function initialize() {
   const db = getDb();
-  
-  if (!process.env.TURSO_DATABASE_URL) {
-    console.warn("Skipping DB init: Missing Turso credentials");
-    return;
-  }
 
   try {
     const batch = [
