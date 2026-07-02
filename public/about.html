@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About Us | Algo Colleague</title>
+  <meta name="description" content="Learn about Algo Colleague, the team behind the ultimate self-hosted LinkedIn automation platform.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Use same styling as privacy.html for consistency -->
+  <style>
+    :root {
+      --bg:            #04080f;
+      --bg-2:          #080f1e;
+      --surface:       rgba(255,255,255,0.04);
+      --surface-hover: rgba(255,255,255,0.072);
+      --border:        rgba(255,255,255,0.08);
+      --border-accent: rgba(99,102,241,0.35);
+      --primary:       #6366f1;
+      --primary-lt:    #818cf8;
+      --text-1:        #f8fafc;
+      --text-2:        #94a3b8;
+      --text-3:        #64748b;
+      --grad:          linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      --grad-text:     linear-gradient(135deg, #a5b4fc 0%, #c4b5fd 50%, #f0abfc 100%);
+    }
+
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text-1);
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+    h1,h2,h3 { font-family: 'Space Grotesk', sans-serif; }
+    a { color:inherit; text-decoration:none; }
+    .container { max-width:1160px; margin:0 auto; padding:0 24px; }
+    .g-text { background: var(--grad-text); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+    /* Nav */
+    .nav { position:fixed; top:0; left:0; right:0; z-index:100; padding:22px 0; transition: all 350ms ease; }
+    .nav.scrolled { background: rgba(4,8,15,.88); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border-bottom: 1px solid var(--border); padding: 14px 0; }
+    .nav .container { display:flex; align-items:center; justify-content:space-between; }
+    .logo { display:flex; align-items:center; gap:10px; font-family:'Space Grotesk',sans-serif; font-size:20px; font-weight:800; color:var(--text-1); }
+    .logo svg { width:36px; height:36px; flex-shrink:0; }
+    .nav-links { display:flex; gap:32px; list-style:none; }
+    .nav-links a { font-size:14px; font-weight:500; color:var(--text-2); transition:color 200ms; }
+    .nav-links a:hover { color:var(--text-1); }
+    .nav-actions { display:flex; align-items:center; gap:10px; }
+    .nav-signin { font-size:14px; font-weight:500; color:var(--text-2); padding:9px 16px; background:none; border:none; cursor:pointer; font-family:'Inter',sans-serif; transition:color 200ms; border-radius:9px; }
+    .nav-signin:hover { color:var(--text-1); background:rgba(255,255,255,.05); }
+    .nav-cta { font-size:14px; font-weight:700; color:white; padding:10px 20px; border-radius:10px; border:none; cursor:pointer; font-family:'Inter',sans-serif; background: var(--grad); box-shadow: 0 4px 16px rgba(99,102,241,.3); transition: all 250ms; }
+    .nav-cta:hover { transform:translateY(-1px); box-shadow:0 6px 24px rgba(99,102,241,.5); }
+
+    /* Content */
+    .about-page { padding: 160px 0 100px; min-height: 80vh; }
+    .about-content { max-width: 800px; margin: 0 auto; }
+    .about-content h1 { font-size: 48px; font-weight: 800; margin-bottom: 24px; letter-spacing: -1px; }
+    .about-content h2 { font-size: 28px; font-weight: 700; margin: 40px 0 16px; color: #fff; }
+    .about-content p { font-size: 17px; color: var(--text-2); line-height: 1.8; margin-bottom: 24px; }
+    .about-content ul { padding-left: 24px; margin-bottom: 24px; color: var(--text-2); line-height: 1.8; }
+    .about-content li { margin-bottom: 8px; }
+    .about-content strong { color: var(--text-1); font-weight: 600; }
+    .about-content a { color: var(--primary-lt); text-decoration: none; transition: color 0.2s; }
+    .about-content a:hover { color: #fff; }
+    
+    .team-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; margin-top: 32px; }
+    .team-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; text-align: center; }
+    .team-av { width: 80px; height: 80px; border-radius: 50%; margin: 0 auto 16px; background: linear-gradient(135deg, #6366f1, #8b5cf6); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 800; color: white; }
+    .team-name { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+    .team-role { font-size: 14px; color: var(--primary-lt); }
+
+    /* Footer */
+    .footer { border-top:1px solid var(--border); padding:72px 0 40px; }
+    .footer-top { display:grid; grid-template-columns:2.2fr 1fr 1fr 1fr; gap:48px; margin-bottom:64px; }
+    .footer-brand .logo { margin-bottom:16px; }
+    .footer-brand p { font-size:14px; color:var(--text-3); line-height:1.75; max-width:270px; }
+    .footer-col h4 { font-size:12px; font-weight:700; color:var(--text-1); text-transform:uppercase; letter-spacing:.1em; margin-bottom:18px; }
+    .footer-col ul { list-style:none; }
+    .footer-col ul li { margin-bottom:12px; }
+    .footer-col ul li a { font-size:14px; color:var(--text-3); transition:color 200ms; }
+    .footer-col ul li a:hover { color:var(--text-1); }
+    .footer-bottom { display:flex; align-items:center; justify-content:space-between; padding-top:32px; border-top:1px solid var(--border); }
+    .footer-copy { font-size:13px; color:var(--text-3); }
+    .social { display:flex; gap:10px; }
+    .social a { width:36px; height:36px; border-radius:9px; background:var(--surface); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:14px; transition:all 200ms; color:var(--text-2); }
+    .social a:hover { background:var(--surface-hover); border-color:var(--border-accent); transform:translateY(-2px); color:var(--text-1); }
+  </style>
+</head>
+<body>
+<nav class="nav" id="nav">
+  <div class="container">
+    <a href="/" class="logo">
+      <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="36" height="36" rx="9" fill="url(#ac-grad)"/>
+  <path d="M7 18h5l3.5-7 5 14 3.5-7h5" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
+  <circle cx="7" cy="18" r="2" fill="white"/>
+  <circle cx="29" cy="18" r="2" fill="white"/>
+  <defs>
+    <linearGradient id="ac-grad" x1="0" y1="0" x2="36" y2="36">
+      <stop stop-color="#3b82f6"/><stop offset="1" stop-color="#06b6d4"/>
+    </linearGradient>
+  </defs>
+</svg>
+      Algo Colleague
+    </a>
+    <ul class="nav-links">
+      <li><a href="/#features">Features</a></li>
+      <li><a href="/#hiw">How It Works</a></li>
+      <li><a href="/#pricing">Pricing</a></li>
+      <li><a href="/blog.html">Blog</a></li>
+    </ul>
+    <div class="nav-actions">
+      <button class="nav-signin" onclick="location.href='/app'">Sign In</button>
+      <button class="nav-cta"    onclick="location.href='/connect'">Get Started Free</button>
+    </div>
+  </div>
+</nav>
+
+<div class="about-page">
+  <div class="container">
+    <div class="about-content">
+      <h1>About <span class="g-text">Algo Colleague</span></h1>
+      
+      <p>Algo Colleague was founded in 2026 with a single, clear mission: to give B2B creators, founders, and marketing agencies full control over their LinkedIn automation strategies without sacrificing their data privacy or their account security.</p>
+      
+      <h2>The Problem We're Solving</h2>
+      <p>Before Algo Colleague, if you wanted to schedule a month of LinkedIn content, automate your commenting strategy, or deeply analyze your impressions, you had to hand over your LinkedIn authentication tokens to third-party SaaS platforms. These platforms ran on centralized servers, meaning if they suffered a data breach, your entire LinkedIn identity was at risk.</p>
+      <p>Furthermore, cloud-based tools often trigger LinkedIn's automated security flags because hundreds of accounts are posting from the same IP ranges. We realized there had to be a better, more secure way for professionals to grow their audience.</p>
+
+      <h2>Our Solution: Self-Hosted Automation</h2>
+      <p>We built Algo Colleague as a deploy-it-yourself (DIY) software suite. By providing the codebase directly to you, we empower you to host the tool on your own infrastructure—whether that's a free Vercel account, your own local machine, or a dedicated private server.</p>
+      <ul>
+        <li><strong>Total Privacy:</strong> Your authentication tokens and scheduled content never touch our servers. They are stored securely in your own environment.</li>
+        <li><strong>Reduced Risk:</strong> Because requests originate from your own trusted servers or edge networks, you avoid the IP-flagging traps of traditional automation tools.</li>
+        <li><strong>Unlimited Scale:</strong> You aren't boxed in by arbitrary SaaS limits. You own the infrastructure.</li>
+      </ul>
+
+      <h2>Who We Are</h2>
+      <p>We are a remote-first team of engineers, growth marketers, and data nerds who love LinkedIn. We saw the gap in the market for a truly private automation solution and spent a year architecting the most elegant, robust, and beautiful tool we could imagine.</p>
+      
+      <div class="team-grid">
+        <div class="team-card">
+          <div class="team-av">S</div>
+          <div class="team-name">Shahnawaz</div>
+          <div class="team-role">Founder & CEO</div>
+        </div>
+        <div class="team-card">
+          <div class="team-av" style="background: linear-gradient(135deg, #06b6d4, #3b82f6)">T</div>
+          <div class="team-name">The Algo Team</div>
+          <div class="team-role">Engineering & Support</div>
+        </div>
+      </div>
+
+      <h2>Our Commitment</h2>
+      <p>We are committed to constantly improving Algo Colleague, keeping up with LinkedIn API changes, and supporting our user base through rapid updates via GitHub. We believe in building software that is as beautiful to look at as it is powerful to use.</p>
+      
+      <p>Thank you for trusting Algo Colleague to power your professional growth.</p>
+    </div>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a href="/" class="logo">
+          <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="36" height="36" rx="9" fill="url(#ac-grad)"/>
+  <path d="M7 18h5l3.5-7 5 14 3.5-7h5" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
+  <circle cx="7" cy="18" r="2" fill="white"/>
+  <circle cx="29" cy="18" r="2" fill="white"/>
+  <defs>
+    <linearGradient id="ac-grad" x1="0" y1="0" x2="36" y2="36">
+      <stop stop-color="#3b82f6"/><stop offset="1" stop-color="#06b6d4"/>
+    </linearGradient>
+  </defs>
+</svg>
+          Algo Colleague
+        </a>
+        <p>The all-in-one self-hosted LinkedIn automation suite. Private, powerful, and beautifully designed for serious creators and teams.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <ul>
+          <li><a href="/#features">Features</a></li>
+          <li><a href="/#pricing">Pricing</a></li>
+          <li><a href="/#hiw">How It Works</a></li>
+          <li><a href="/app">Dashboard</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Resources</h4>
+        <ul>
+          <li><a href="/blog.html">Blog & Guides</a></li>
+          <li><a href="/#faq">FAQ</a></li>
+          <li><a href="#">Documentation</a></li>
+          <li><a href="#">GitHub</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Legal & Company</h4>
+        <ul>
+          <li><a href="/privacy.html">Privacy Policy</a></li>
+          <li><a href="/terms.html">Terms of Service</a></li>
+          <li><a href="/about.html">About Us</a></li>
+          <li><a href="/contact.html">Contact Us</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div class="footer-copy">© 2026 Algo Colleague. Made with ♥ for LinkedIn creators worldwide.</div>
+      <div class="social">
+        <a href="#" title="Twitter / X" aria-label="Twitter">𝕏</a>
+        <a href="#" title="LinkedIn"    aria-label="LinkedIn">in</a>
+        <a href="#" title="GitHub"      aria-label="GitHub">⌥</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  const nav = document.getElementById('nav');
+  window.addEventListener('scroll', () => nav.classList.toggle('scrolled', scrollY > 40), { passive: true });
+</script>
+<script src="/js/cookie-consent.js"></script>
+</body>
+</html>
