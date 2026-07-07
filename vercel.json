@@ -27,4 +27,5 @@
       "src": "/(.*)",
       "dest": "/server/index.js"
     }
+  ]
 }
