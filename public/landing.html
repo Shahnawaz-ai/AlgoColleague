@@ -1206,6 +1206,16 @@
       if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
     });
   });
+
+  /* ── Auto-redirect to dashboard if already logged in ── */
+  fetch('/api/auth/status')
+    .then(r => r.json())
+    .then(data => {
+      if (data.authenticated) {
+        window.location.href = '/app';
+      }
+    })
+    .catch(err => console.error('Error checking auth status:', err));
 </script>
 </body>
 </html>

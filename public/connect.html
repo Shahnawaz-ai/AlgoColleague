@@ -421,6 +421,15 @@
 
     try {
       showLoading('Verifying workspace configuration...');
+      
+      // Auto-redirect if already logged in
+      const authStatusRes = await fetch('/api/auth/status');
+      const authStatus = await authStatusRes.json();
+      if (authStatus.authenticated) {
+        window.location.href = '/app';
+        return;
+      }
+
       const res = await fetch('/api/auth/credentials');
       const data = await res.json();
       
