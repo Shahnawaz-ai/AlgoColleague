@@ -49,6 +49,22 @@ app.use('/api/', apiLimiter);
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/uploads', express.static(path.join(__dirname, '..', 'data', 'uploads')));
 
+const { ClerkExpressRequireAuth, ClerkExpressWithAuth } = require('@clerk/clerk-sdk-node');
+
+// Health check (Public)
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    environment: process.env.NODE_ENV,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Protect API routes
+app.use('/api', ClerkExpressRequireAuth({
+  // Use default options
+}));
+
 // API Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/posts', require('./routes/posts'));
@@ -93,6 +109,9 @@ app.all('*', (req, res) => {
 });
 
 app.use((err, req, res, next) => {
+  if (err.message === 'Unauthenticated' || err.statusCode === 401) {
+    return res.status(401).json({ error: 'Unauthenticated' });
+  }
   console.error('Unhandled error:', err);
   res.status(500).json({
     error: isProd ? 'Internal server error' : err.message,

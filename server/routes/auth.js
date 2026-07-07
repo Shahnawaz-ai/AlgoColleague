@@ -41,10 +41,11 @@ router.post('/callback', async (req, res) => {
   const { code, redirectUri } = req.body;
   if (!code) return res.status(400).json({ error: 'No authorization code provided' });
   if (!redirectUri) return res.status(400).json({ error: 'No redirectUri provided' });
+  const userId = req.auth.userId;
 
-  const success = await linkedInAPI.exchangeCodeForToken(code, redirectUri);
+  const success = await linkedInAPI.exchangeCodeForToken(code, redirectUri, userId);
   if (success) {
-    await linkedInAPI.fetchAndStoreProfile();
+    await linkedInAPI.fetchAndStoreProfile(userId);
     res.json({ success: true });
   } else {
     res.status(500).json({ error: 'Failed to authenticate with LinkedIn' });
@@ -53,24 +54,26 @@ router.post('/callback', async (req, res) => {
 
 // Check authentication status
 router.get('/status', async (req, res) => {
-  const isAuthenticated = await linkedInAPI.isTokenValid();
-  const profile = isAuthenticated ? await linkedInAPI.getProfile() : null;
-  const expiry = await getSetting('linkedin_token_expiry');
+  const userId = req.auth.userId;
+  const isAuthenticated = await linkedInAPI.isTokenValid(userId);
+  const profile = isAuthenticated ? await linkedInAPI.getProfile(userId) : null;
   res.json({
     authenticated: isAuthenticated,
     profile,
-    tokenExpiry: expiry || '0',
+    tokenExpiry: profile?.tokenExpiry || '0',
   });
 });
 
 // Disconnect
 router.post('/logout', async (req, res) => {
-  await setSetting('linkedin_token', '');
-  await setSetting('linkedin_token_expiry', '0');
-  await setSetting('user_id', '');
-  await setSetting('user_name', '');
-  await setSetting('user_picture', '');
-  await logActivity('auth_logout', 'user', null, 'User disconnected LinkedIn account');
+  const userId = req.auth.userId;
+  const { setUserSetting } = require('../db');
+  await setUserSetting(userId, 'linkedin_token', '');
+  await setUserSetting(userId, 'linkedin_token_expiry', '0');
+  await setUserSetting(userId, 'linkedin_profile_id', '');
+  await setUserSetting(userId, 'linkedin_name', '');
+  await setUserSetting(userId, 'linkedin_picture', '');
+  await logActivity('auth_logout', 'user', userId, 'User disconnected LinkedIn account');
   res.json({ success: true });
 });
 

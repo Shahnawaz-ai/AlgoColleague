@@ -52,19 +52,21 @@ const App = {
     const name = document.getElementById('profile-name');
     const status = document.getElementById('profile-status');
 
-    if (data.authenticated && data.profile) {
-      const initials = (data.profile.name || '?').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-      if (data.profile.picture) {
-        avatar.innerHTML = `<img src="${data.profile.picture}" alt="${data.profile.name}">`;
+    if (avatar && name && status) {
+      if (data.authenticated && data.profile) {
+        const initials = (data.profile.name || '?').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+        if (data.profile.picture) {
+          avatar.innerHTML = `<img src="${data.profile.picture}" alt="${data.profile.name}">`;
+        } else {
+          avatar.textContent = initials;
+        }
+        name.textContent = data.profile.name || 'LinkedIn User';
+        status.innerHTML = '<span class="status-dot"></span><span>Connected</span>';
       } else {
-        avatar.textContent = initials;
+        avatar.textContent = '?';
+        name.textContent = 'Not Connected';
+        status.innerHTML = '<span class="status-dot" style="background: var(--accent-amber)"></span><span>Setup Required</span>';
       }
-      name.textContent = data.profile.name || 'LinkedIn User';
-      status.innerHTML = '<span class="status-dot"></span><span>Connected</span>';
-    } else {
-      avatar.textContent = '?';
-      name.textContent = 'Not Connected';
-      status.innerHTML = '<span class="status-dot" style="background: var(--accent-amber)"></span><span>Setup Required</span>';
     }
   },
 
@@ -106,6 +108,20 @@ const App = {
       settings: SettingsPage,
       comments: CommentsPage,
       onboarding: OnboardingPage,
+      profile: window.ProfilePage || { render: () => {
+        document.getElementById('page-container').innerHTML = `
+          <div class="page-header"><h1 class="page-title">👤 My Profile</h1></div>
+          <div class="page-content"><div class="empty-state"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Loading profile...</div></div></div>
+        `;
+        if (!document.querySelector('script[src="/js/pages/profile.js"]')) {
+          const script = document.createElement('script');
+          script.src = '/js/pages/profile.js';
+          script.onload = () => window.ProfilePage && window.ProfilePage.render();
+          document.body.appendChild(script);
+        } else if (window.ProfilePage) {
+          window.ProfilePage.render();
+        }
+      }},
     };
 
     const PageModule = pages[page];
@@ -132,6 +148,11 @@ const App = {
       headers: { 'Content-Type': 'application/json' },
       ...options,
     };
+
+    if (window.Clerk && window.Clerk.session) {
+      const token = await window.Clerk.session.getToken();
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
 
     if (options.body && typeof options.body === 'object') {
       config.body = JSON.stringify(options.body);

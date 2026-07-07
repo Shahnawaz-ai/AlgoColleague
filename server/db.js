@@ -125,6 +125,16 @@ async function initialize() {
     )
   `);
 
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS user_settings (
+      user_id TEXT,
+      key TEXT,
+      value TEXT,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, key)
+    )
+  `);
+
   const indexes = [
     'CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status)',
     'CREATE INDEX IF NOT EXISTS idx_posts_scheduled ON posts(scheduled_at)',
@@ -133,10 +143,26 @@ async function initialize() {
     'CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id)',
     'CREATE INDEX IF NOT EXISTS idx_connections_status ON connections(status)',
     'CREATE INDEX IF NOT EXISTS idx_activity_log_created ON activity_log(created_at)',
+    'CREATE INDEX IF NOT EXISTS idx_posts_user ON posts(user_id)',
+    'CREATE INDEX IF NOT EXISTS idx_templates_user ON templates(user_id)',
+    'CREATE INDEX IF NOT EXISTS idx_connections_user ON connections(user_id)',
+    'CREATE INDEX IF NOT EXISTS idx_activity_log_user ON activity_log(user_id)',
+    'CREATE INDEX IF NOT EXISTS idx_auto_response_rules_user ON auto_response_rules(user_id)',
   ];
 
   for (const idx of indexes) {
     try { await client.execute(idx); } catch (e) { /* ignore */ }
+  }
+
+  // Schema migrations to add user_id to existing tables
+  const tables = ['posts', 'templates', 'connections', 'analytics', 'comments', 'auto_response_rules', 'activity_log'];
+  for (const table of tables) {
+    try {
+      await client.execute(`ALTER TABLE ${table} ADD COLUMN user_id TEXT`);
+      console.log(`Added user_id column to ${table}`);
+    } catch (e) {
+      // Ignore if column already exists
+    }
   }
 
   console.log('✅ Remote Turso Database initialized successfully');
@@ -173,10 +199,10 @@ async function dbAll(sql, ...params) {
   }
 }
 
-async function logActivity(action, entityType, entityId, details) {
+async function logActivity(action, entityType, entityId, details, userId = null) {
   await dbRun(
-    'INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?, ?, ?, ?)',
-    action, entityType, entityId, typeof details === 'object' ? JSON.stringify(details) : details
+    'INSERT INTO activity_log (action, entity_type, entity_id, details, user_id) VALUES (?, ?, ?, ?, ?)',
+    action, entityType, entityId, typeof details === 'object' ? JSON.stringify(details) : details, userId
   );
 }
 
@@ -194,4 +220,18 @@ async function setSetting(key, value) {
   }
 }
 
-module.exports = { initialize, client, dbRun, dbGet, dbAll, logActivity, getSetting, setSetting };
+async function getUserSetting(userId, key) {
+  const row = await dbGet('SELECT value FROM user_settings WHERE user_id = ? AND key = ?', userId, key);
+  return row ? row.value : null;
+}
+
+async function setUserSetting(userId, key, value) {
+  const existing = await dbGet('SELECT key FROM user_settings WHERE user_id = ? AND key = ?', userId, key);
+  if (existing) {
+    await dbRun('UPDATE user_settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND key = ?', value, userId, key);
+  } else {
+    await dbRun('INSERT INTO user_settings (user_id, key, value, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)', userId, key, value);
+  }
+}
+
+module.exports = { initialize, client, dbRun, dbGet, dbAll, logActivity, getSetting, setSetting, getUserSetting, setUserSetting };

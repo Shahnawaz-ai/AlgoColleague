@@ -24,7 +24,7 @@ class LinkedInAPI {
     return `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encRedirectUri}&state=${state}&scope=${scopes}`;
   }
 
-  async exchangeCodeForToken(code, redirectUri) {
+  async exchangeCodeForToken(code, redirectUri, userId) {
     const clientId = await getSetting('linkedin_client_id');
     const clientSecret = await getSetting('linkedin_client_secret');
 
@@ -44,10 +44,10 @@ class LinkedInAPI {
       const expiresIn = response.data.expires_in; // Usually 60 days
       const expiry = Date.now() + (expiresIn * 1000);
 
-      await setSetting('linkedin_token', token);
-      await setSetting('linkedin_token_expiry', expiry.toString());
+      await setUserSetting(userId, 'linkedin_token', token);
+      await setUserSetting(userId, 'linkedin_token_expiry', expiry.toString());
       
-      await logActivity('auth_login', 'user', null, 'Successfully authenticated via LinkedIn OAuth');
+      await logActivity('auth_login', 'user', userId, 'Successfully authenticated via LinkedIn OAuth');
       return true;
     } catch (error) {
       console.error('Token exchange failed:', error.response?.data || error.message);
@@ -55,25 +55,26 @@ class LinkedInAPI {
     }
   }
 
-  async isTokenValid() {
-    const token = await getSetting('linkedin_token');
-    const expiryStr = await getSetting('linkedin_token_expiry');
+  async isTokenValid(userId) {
+    const token = await getUserSetting(userId, 'linkedin_token');
+    const expiryStr = await getUserSetting(userId, 'linkedin_token_expiry');
     const expiry = parseInt(expiryStr || '0');
     return !!token && expiry > Date.now();
   }
 
-  async getProfile() {
+  async getProfile(userId) {
     return {
-      id: await getSetting('user_id'),
-      name: await getSetting('user_name'),
-      email: await getSetting('user_email'),
-      picture: await getSetting('user_picture'),
+      id: await getUserSetting(userId, 'linkedin_profile_id'),
+      name: await getUserSetting(userId, 'linkedin_name'),
+      email: await getUserSetting(userId, 'linkedin_email'),
+      picture: await getUserSetting(userId, 'linkedin_picture'),
+      tokenExpiry: await getUserSetting(userId, 'linkedin_token_expiry'),
     };
   }
 
-  async fetchAndStoreProfile() {
+  async fetchAndStoreProfile(userId) {
     await this.throttle();
-    const token = await getSetting('linkedin_token');
+    const token = await getUserSetting(userId, 'linkedin_token');
     if (!token) return null;
 
     try {
@@ -82,27 +83,27 @@ class LinkedInAPI {
       });
       
       const profile = response.data;
-      await setSetting('user_id', profile.sub);
-      await setSetting('user_name', profile.name);
-      await setSetting('user_email', profile.email);
-      await setSetting('user_picture', profile.picture || '');
+      await setUserSetting(userId, 'linkedin_profile_id', profile.sub);
+      await setUserSetting(userId, 'linkedin_name', profile.name);
+      await setUserSetting(userId, 'linkedin_email', profile.email);
+      await setUserSetting(userId, 'linkedin_picture', profile.picture || '');
 
-      return await this.getProfile();
+      return await this.getProfile(userId);
     } catch (error) {
       console.error('Profile fetch failed:', error.response?.data || error.message);
       return null;
     }
   }
 
-  async createTextPost(content) {
+  async createTextPost(userId, content) {
     await this.throttle();
-    const token = await getSetting('linkedin_token');
-    const userId = await getSetting('user_id');
-    if (!token || !userId) throw new Error('Not authenticated');
+    const token = await getUserSetting(userId, 'linkedin_token');
+    const profileId = await getUserSetting(userId, 'linkedin_profile_id');
+    if (!token || !profileId) throw new Error('Not authenticated with LinkedIn');
 
     try {
       const payload = {
-        author: `urn:li:person:${userId}`,
+        author: `urn:li:person:${profileId}`,
         lifecycleState: 'PUBLISHED',
         specificContent: {
           'com.linkedin.ugc.ShareContent': {
@@ -128,7 +129,7 @@ class LinkedInAPI {
       );
 
       const postId = response.headers['x-restli-id'] || 'oauth_post_' + Date.now();
-      await logActivity('post_published', 'post', postId, `Text post published via OAuth`);
+      await logActivity('post_published', 'post', postId, `Text post published via OAuth for user ${userId}`);
       return { success: true, linkedinPostId: postId };
     } catch (error) {
       console.error('Post creation failed:', error.response?.data || error.message);
@@ -136,14 +137,14 @@ class LinkedInAPI {
     }
   }
 
-  async createImagePost(content, imagePaths) {
+  async createImagePost(userId, content, imagePaths) {
     throw new Error('Image posting is simplified and uses text fallback in this version.');
   }
 
-  async getPostComments(postUrn) { return []; }
-  async replyToComment(postUrn, commentUrn, replyText) { return { success: false }; }
-  async getPostReactions(postUrn) { return []; }
-  async getPostAnalytics(postUrn) { return null; }
+  async getPostComments(userId, postUrn) { return []; }
+  async replyToComment(userId, postUrn, commentUrn, replyText) { return { success: false }; }
+  async getPostReactions(userId, postUrn) { return []; }
+  async getPostAnalytics(userId, postUrn) { return null; }
 }
 
 module.exports = new LinkedInAPI();

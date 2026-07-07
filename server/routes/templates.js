@@ -6,12 +6,13 @@ const { dbGet, dbAll, dbRun, logActivity } = require('../db');
 // List all templates
 router.get('/', async (req, res) => {
   try {
+    const userId = req.auth.userId;
     const { category } = req.query;
-    let query = 'SELECT * FROM templates';
-    const params = [];
+    let query = 'SELECT * FROM templates WHERE user_id = ?';
+    const params = [userId];
 
     if (category) {
-      query += ' WHERE category = ?';
+      query += ' AND category = ?';
       params.push(category);
     }
 
@@ -29,7 +30,8 @@ router.get('/', async (req, res) => {
 // Get single template
 router.get('/:id', async (req, res) => {
   try {
-    const template = await dbGet('SELECT * FROM templates WHERE id = ?', req.params.id);
+    const userId = req.auth.userId;
+    const template = await dbGet('SELECT * FROM templates WHERE id = ? AND user_id = ?', req.params.id, userId);
     if (!template) return res.status(404).json({ error: 'Template not found' });
     template.tags = JSON.parse(template.tags || '[]');
     res.json({ template });
@@ -41,6 +43,7 @@ router.get('/:id', async (req, res) => {
 // Create template
 router.post('/', async (req, res) => {
   try {
+    const userId = req.auth.userId;
     const { name, category = 'general', content, tags = [] } = req.body;
     if (!name || !content) {
       return res.status(400).json({ error: 'Name and content are required' });
@@ -48,13 +51,13 @@ router.post('/', async (req, res) => {
 
     const id = uuidv4();
     await dbRun(`
-      INSERT INTO templates (id, name, category, content, tags, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `, id, name, category, content, JSON.stringify(tags));
+      INSERT INTO templates (id, name, category, content, tags, created_at, updated_at, user_id)
+      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
+    `, id, name, category, content, JSON.stringify(tags), userId);
 
-    await logActivity('template_created', 'template', id, `Created template: ${name}`);
+    await logActivity('template_created', 'template', id, `Created template: ${name}`, userId);
 
-    const template = await dbGet('SELECT * FROM templates WHERE id = ?', id);
+    const template = await dbGet('SELECT * FROM templates WHERE id = ? AND user_id = ?', id, userId);
     template.tags = JSON.parse(template.tags || '[]');
 
     res.status(201).json({ template });
@@ -66,7 +69,8 @@ router.post('/', async (req, res) => {
 // Update template
 router.put('/:id', async (req, res) => {
   try {
-    const template = await dbGet('SELECT * FROM templates WHERE id = ?', req.params.id);
+    const userId = req.auth.userId;
+    const template = await dbGet('SELECT * FROM templates WHERE id = ? AND user_id = ?', req.params.id, userId);
     if (!template) return res.status(404).json({ error: 'Template not found' });
 
     const { name, category, content, tags } = req.body;
@@ -81,12 +85,12 @@ router.put('/:id', async (req, res) => {
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 
     updates.push('updated_at = CURRENT_TIMESTAMP');
-    params.push(req.params.id);
+    params.push(req.params.id, userId);
 
-    await dbRun(`UPDATE templates SET ${updates.join(', ')} WHERE id = ?`, ...params);
-    await logActivity('template_updated', 'template', req.params.id, 'Template updated');
+    await dbRun(`UPDATE templates SET ${updates.join(', ')} WHERE id = ? AND user_id = ?`, ...params);
+    await logActivity('template_updated', 'template', req.params.id, 'Template updated', userId);
 
-    const updated = await dbGet('SELECT * FROM templates WHERE id = ?', req.params.id);
+    const updated = await dbGet('SELECT * FROM templates WHERE id = ? AND user_id = ?', req.params.id, userId);
     updated.tags = JSON.parse(updated.tags || '[]');
 
     res.json({ template: updated });
@@ -98,11 +102,12 @@ router.put('/:id', async (req, res) => {
 // Delete template
 router.delete('/:id', async (req, res) => {
   try {
-    const template = await dbGet('SELECT * FROM templates WHERE id = ?', req.params.id);
+    const userId = req.auth.userId;
+    const template = await dbGet('SELECT * FROM templates WHERE id = ? AND user_id = ?', req.params.id, userId);
     if (!template) return res.status(404).json({ error: 'Template not found' });
 
-    await dbRun('DELETE FROM templates WHERE id = ?', req.params.id);
-    await logActivity('template_deleted', 'template', req.params.id, 'Template deleted');
+    await dbRun('DELETE FROM templates WHERE id = ? AND user_id = ?', req.params.id, userId);
+    await logActivity('template_deleted', 'template', req.params.id, 'Template deleted', userId);
 
     res.json({ success: true });
   } catch (err) {
@@ -113,10 +118,11 @@ router.delete('/:id', async (req, res) => {
 // Use template
 router.post('/:id/use', async (req, res) => {
   try {
-    const template = await dbGet('SELECT * FROM templates WHERE id = ?', req.params.id);
+    const userId = req.auth.userId;
+    const template = await dbGet('SELECT * FROM templates WHERE id = ? AND user_id = ?', req.params.id, userId);
     if (!template) return res.status(404).json({ error: 'Template not found' });
 
-    await dbRun('UPDATE templates SET usage_count = usage_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', req.params.id);
+    await dbRun('UPDATE templates SET usage_count = usage_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?', req.params.id, userId);
 
     template.tags = JSON.parse(template.tags || '[]');
     template.usage_count += 1;
@@ -130,7 +136,8 @@ router.post('/:id/use', async (req, res) => {
 // Seed default templates
 router.post('/seed', async (req, res) => {
   try {
-    const row = await dbGet('SELECT COUNT(*) as count FROM templates');
+    const userId = req.auth.userId;
+    const row = await dbGet('SELECT COUNT(*) as count FROM templates WHERE user_id = ?', userId);
     const existing = row ? row.count : 0;
     if (existing > 0) {
       return res.json({ message: 'Templates already exist', seeded: 0 });
@@ -147,12 +154,12 @@ router.post('/seed', async (req, res) => {
 
     let seeded = 0;
     for (const t of defaults) {
-      await dbRun('INSERT INTO templates (id, name, category, content, tags, created_at, updated_at) VALUES (?, ?, ?, ?, \'[]\', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
-        uuidv4(), t.name, t.category, t.content);
+      await dbRun('INSERT INTO templates (id, name, category, content, tags, created_at, updated_at, user_id) VALUES (?, ?, ?, ?, \'[]\', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)',
+        uuidv4(), t.name, t.category, t.content, userId);
       seeded++;
     }
 
-    await logActivity('templates_seeded', 'template', null, `Seeded ${seeded} default templates`);
+    await logActivity('templates_seeded', 'template', null, `Seeded ${seeded} default templates`, userId);
     res.json({ message: `Seeded ${seeded} templates`, seeded });
   } catch (err) {
     res.status(500).json({ error: 'Database error' });

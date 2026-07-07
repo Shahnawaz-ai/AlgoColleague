@@ -8,6 +8,7 @@
     "dev": "node --watch server/index.js"
   },
   "dependencies": {
+    "@clerk/clerk-sdk-node": "^4.13.23",
     "@libsql/client": "^0.17.4",
     "axios": "^1.7.0",
     "compression": "^1.8.1",

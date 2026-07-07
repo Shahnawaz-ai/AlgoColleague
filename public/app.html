@@ -73,6 +73,10 @@
 
         <div class="nav-section">
           <div class="nav-section-title">Library</div>
+          <a class="nav-item" data-page="profile" onclick="App.navigate('profile')">
+            <span class="nav-item-icon">👤</span>
+            <span>My Profile</span>
+          </a>
           <a class="nav-item" data-page="templates" onclick="App.navigate('templates')">
             <span class="nav-item-icon">📝</span>
             <span>Templates</span>
@@ -90,16 +94,7 @@
           <span class="nav-item-icon">🏠</span>
           <span>Back to Home</span>
         </a>
-        <div class="sidebar-profile" id="sidebar-profile" onclick="App.navigate('settings')">
-          <div class="sidebar-profile-avatar" id="profile-avatar">?</div>
-          <div class="sidebar-profile-info">
-            <div class="sidebar-profile-name" id="profile-name">Not Connected</div>
-            <div class="sidebar-profile-status" id="profile-status">
-              <span class="status-dot" style="background: var(--accent-amber)"></span>
-              <span>Setup Required</span>
-            </div>
-          </div>
-        </div>
+        <div id="clerk-user-button" style="padding: 12px; margin-top: 8px;"></div>
       </div>
     </aside>
 
@@ -135,6 +130,15 @@
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
+  <!-- Clerk Authentication Script -->
+  <script
+    async
+    crossorigin="anonymous"
+    data-clerk-publishable-key="pk_test_aW50ZW50LWJ1Y2stNTYuY2xlcmsuYWNjb3VudHMuZGV2JA"
+    src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
+    type="text/javascript"
+  ></script>
+
   <!-- Scripts -->
   <script src="/js/pages/onboarding.js"></script>
   <script src="/js/app.js"></script>
@@ -148,8 +152,24 @@
   <script src="/js/pages/templates.js"></script>
   <script src="/js/pages/settings.js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      App.init();
+    window.addEventListener('load', async function () {
+      if (window.Clerk) {
+        await window.Clerk.load();
+        if (!window.Clerk.user) {
+          window.location.href = '/?redirect=false';
+          return;
+        }
+        
+        // Mount Clerk UserButton in sidebar
+        const userButtonDiv = document.getElementById('clerk-user-button');
+        window.Clerk.mountUserButton(userButtonDiv);
+        
+        // Initialize App after Clerk is ready
+        App.init();
+      } else {
+        console.error('Clerk failed to load');
+        App.init();
+      }
     });
   </script>
 </body>
