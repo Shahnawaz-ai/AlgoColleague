@@ -1,189 +1,236 @@
-const { createClient } = require('@libsql/client');
-require('dotenv').config();
+const initSqlJs = require('sql.js');
+const path = require('path');
+const fs = require('fs');
 
-let client = null;
+const DB_PATH = path.join(__dirname, '..', 'data', 'linkedin_manager.db');
 
-function getDb() {
-  if (client) return client;
+// Ensure data directory exists
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
-  const url = process.env.TURSO_DATABASE_URL;
-  const authToken = process.env.TURSO_AUTH_TOKEN;
+let db = null;
 
-  if (url && authToken) {
-    client = createClient({
-      url: url,
-      authToken: authToken
-    });
-    console.log('🔗 Connecting to Turso Cloud Database');
+async function getDb() {
+  if (db) return db;
+
+  const SQL = await initSqlJs();
+
+  // Load existing database or create new one
+  if (fs.existsSync(DB_PATH)) {
+    const buffer = fs.readFileSync(DB_PATH);
+    db = new SQL.Database(buffer);
   } else {
-    // Fallback to local SQLite file for development
-    console.warn('⚠️  No Turso credentials found. Falling back to local SQLite file.');
-    const fs = require('fs');
-    const path = require('path');
-    const DB_PATH = path.join(__dirname, '..', 'data', 'linkedin_manager.db');
-    fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
-    
-    client = createClient({
-      url: `file:${DB_PATH}`
-    });
+    db = new SQL.Database();
   }
 
-  return client;
+  return db;
 }
+
+function saveDb() {
+  if (!db) return;
+  const data = db.export();
+  const buffer = Buffer.from(data);
+  fs.writeFileSync(DB_PATH, buffer);
+}
+
+// Auto-save every 30 seconds
+setInterval(() => {
+  if (db) saveDb();
+}, 30000);
+
+// Save on process exit
+process.on('exit', () => { if (db) saveDb(); });
+process.on('SIGINT', () => { if (db) saveDb(); process.exit(0); });
+process.on('SIGTERM', () => { if (db) saveDb(); process.exit(0); });
 
 async function initialize() {
-  const db = getDb();
+  const database = await getDb();
 
-  try {
-    const batch = [
-      `CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS posts (
-        id TEXT PRIMARY KEY,
-        content TEXT NOT NULL,
-        post_type TEXT DEFAULT 'text',
-        media_urls TEXT DEFAULT '[]',
-        linkedin_post_id TEXT,
-        linkedin_post_url TEXT,
-        status TEXT DEFAULT 'draft',
-        scheduled_at DATETIME,
-        published_at DATETIME,
-        error_message TEXT,
-        retry_count INTEGER DEFAULT 0,
-        tags TEXT DEFAULT '[]',
-        template_id TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS templates (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        category TEXT DEFAULT 'general',
-        content TEXT NOT NULL,
-        tags TEXT DEFAULT '[]',
-        usage_count INTEGER DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS connections (
-        id TEXT PRIMARY KEY,
-        linkedin_id TEXT,
-        name TEXT,
-        headline TEXT,
-        profile_url TEXT,
-        profile_image TEXT,
-        message TEXT,
-        status TEXT DEFAULT 'pending',
-        action_note TEXT,
-        received_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        acted_at DATETIME
-      )`,
-      `CREATE TABLE IF NOT EXISTS analytics (
-        id TEXT PRIMARY KEY,
-        post_id TEXT NOT NULL,
-        impressions INTEGER DEFAULT 0,
-        likes INTEGER DEFAULT 0,
-        comments INTEGER DEFAULT 0,
-        shares INTEGER DEFAULT 0,
-        clicks INTEGER DEFAULT 0,
-        engagement_rate REAL DEFAULT 0,
-        reactions_breakdown TEXT DEFAULT '{}',
-        fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS comments (
-        id TEXT PRIMARY KEY,
-        post_id TEXT NOT NULL,
-        linkedin_comment_id TEXT,
-        author_name TEXT,
-        author_headline TEXT,
-        author_image TEXT,
-        content TEXT NOT NULL,
-        parent_comment_id TEXT,
-        is_reply_sent INTEGER DEFAULT 0,
-        reply_content TEXT,
-        replied_at DATETIME,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS activity_log (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        action TEXT NOT NULL,
-        entity_type TEXT,
-        entity_id TEXT,
-        details TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS auto_response_rules (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        trigger_type TEXT DEFAULT 'keyword',
-        trigger_value TEXT,
-        response_template TEXT NOT NULL,
-        is_active INTEGER DEFAULT 1,
-        usage_count INTEGER DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`
-    ];
+  database.run(`
+    -- OAuth tokens and user profile
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
-    await db.batch(batch, "write");
-    console.log('Turso Database initialized successfully');
-  } catch (error) {
-    console.error('Failed to initialize database:', error);
+  database.run(`
+    CREATE TABLE IF NOT EXISTS posts (
+      id TEXT PRIMARY KEY,
+      content TEXT NOT NULL,
+      post_type TEXT DEFAULT 'text',
+      media_urls TEXT DEFAULT '[]',
+      linkedin_post_id TEXT,
+      linkedin_post_url TEXT,
+      status TEXT DEFAULT 'draft',
+      scheduled_at DATETIME,
+      published_at DATETIME,
+      error_message TEXT,
+      retry_count INTEGER DEFAULT 0,
+      tags TEXT DEFAULT '[]',
+      template_id TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS templates (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      category TEXT DEFAULT 'general',
+      content TEXT NOT NULL,
+      tags TEXT DEFAULT '[]',
+      usage_count INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS connections (
+      id TEXT PRIMARY KEY,
+      linkedin_id TEXT,
+      name TEXT,
+      headline TEXT,
+      profile_url TEXT,
+      profile_image TEXT,
+      message TEXT,
+      status TEXT DEFAULT 'pending',
+      action_note TEXT,
+      received_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      acted_at DATETIME
+    )
+  `);
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS analytics (
+      id TEXT PRIMARY KEY,
+      post_id TEXT NOT NULL,
+      impressions INTEGER DEFAULT 0,
+      likes INTEGER DEFAULT 0,
+      comments INTEGER DEFAULT 0,
+      shares INTEGER DEFAULT 0,
+      clicks INTEGER DEFAULT 0,
+      engagement_rate REAL DEFAULT 0,
+      reactions_breakdown TEXT DEFAULT '{}',
+      fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS comments (
+      id TEXT PRIMARY KEY,
+      post_id TEXT NOT NULL,
+      linkedin_comment_id TEXT,
+      author_name TEXT,
+      author_headline TEXT,
+      author_image TEXT,
+      content TEXT NOT NULL,
+      parent_comment_id TEXT,
+      is_reply_sent INTEGER DEFAULT 0,
+      reply_content TEXT,
+      replied_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS activity_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      action TEXT NOT NULL,
+      entity_type TEXT,
+      entity_id TEXT,
+      details TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  database.run(`
+    CREATE TABLE IF NOT EXISTS auto_response_rules (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      trigger_type TEXT DEFAULT 'keyword',
+      trigger_value TEXT,
+      response_template TEXT NOT NULL,
+      is_active INTEGER DEFAULT 1,
+      usage_count INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Create indexes (ignore errors if they exist)
+  const indexes = [
+    'CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status)',
+    'CREATE INDEX IF NOT EXISTS idx_posts_scheduled ON posts(scheduled_at)',
+    'CREATE INDEX IF NOT EXISTS idx_posts_published ON posts(published_at)',
+    'CREATE INDEX IF NOT EXISTS idx_analytics_post ON analytics(post_id)',
+    'CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id)',
+    'CREATE INDEX IF NOT EXISTS idx_connections_status ON connections(status)',
+    'CREATE INDEX IF NOT EXISTS idx_activity_log_created ON activity_log(created_at)',
+  ];
+
+  for (const idx of indexes) {
+    try { database.run(idx); } catch (e) { /* index may already exist */ }
   }
+
+  saveDb();
+  console.log('✅ Database initialized successfully');
 }
 
-// Wrapper to mimic the old sqlite3/sql.js interface BUT asynchronously
+// --- Helper functions wrapping sql.js API ---
+
 function prepare(sql) {
   return {
-    async run(...params) {
-      const db = getDb();
-      await db.execute({ sql, args: params });
+    // Run with params, return changes info
+    run(...params) {
+      db.run(sql, params);
+      saveDb();
     },
-    async get(...params) {
-      const db = getDb();
-      const result = await db.execute({ sql, args: params });
-      if (result.rows.length === 0) return null;
-      const row = result.rows[0];
-      const obj = {};
-      result.columns.forEach((col, i) => { obj[col] = row[i]; });
-      return obj;
+    // Get single row
+    get(...params) {
+      const stmt = db.prepare(sql);
+      stmt.bind(params);
+      let row = null;
+      if (stmt.step()) {
+        row = stmt.getAsObject();
+      }
+      stmt.free();
+      return row;
     },
-    async all(...params) {
-      const db = getDb();
-      const result = await db.execute({ sql, args: params });
-      return result.rows.map(row => {
-        const obj = {};
-        result.columns.forEach((col, i) => { obj[col] = row[i]; });
-        return obj;
-      });
+    // Get all rows
+    all(...params) {
+      const results = [];
+      const stmt = db.prepare(sql);
+      stmt.bind(params);
+      while (stmt.step()) {
+        results.push(stmt.getAsObject());
+      }
+      stmt.free();
+      return results;
     },
   };
 }
 
-async function logActivity(action, entityType, entityId, details) {
-  await prepare(
+function logActivity(action, entityType, entityId, details) {
+  prepare(
     'INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?, ?, ?, ?)'
   ).run(action, entityType, entityId, typeof details === 'object' ? JSON.stringify(details) : details);
 }
 
-async function getSetting(key) {
-  const row = await prepare('SELECT value FROM settings WHERE key = ?').get(key);
+function getSetting(key) {
+  const row = prepare('SELECT value FROM settings WHERE key = ?').get(key);
   return row ? row.value : null;
 }
 
-async function setSetting(key, value) {
-  const existing = await prepare('SELECT key FROM settings WHERE key = ?').get(key);
+function setSetting(key, value) {
+  // Check if exists
+  const existing = prepare('SELECT key FROM settings WHERE key = ?').get(key);
   if (existing) {
-    await prepare('UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?').run(value, key);
+    prepare('UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?').run(value, key);
   } else {
-    await prepare('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)').run(key, value);
+    prepare('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)').run(key, value);
   }
-}
-
-function saveDb() {
-  // No-op for Turso, since it saves automatically to the cloud
 }
 
 module.exports = { getDb, initialize, prepare, logActivity, getSetting, setSetting, saveDb };

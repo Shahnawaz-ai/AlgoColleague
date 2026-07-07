@@ -113,6 +113,25 @@
     </main>
   </div>
 
+  <!-- Mobile Bottom Dock -->
+  <nav class="bottom-dock">
+    <a class="dock-item active" data-page="dashboard" onclick="App.navigate('dashboard')">
+      <span class="dock-icon">📊</span>
+    </a>
+    <a class="dock-item" data-page="composer" onclick="App.navigate('composer')">
+      <span class="dock-icon">✍️</span>
+    </a>
+    <a class="dock-item" data-page="posts" onclick="App.navigate('posts')">
+      <span class="dock-icon">📋</span>
+    </a>
+    <a class="dock-item" data-page="connections" onclick="App.navigate('connections')">
+      <span class="dock-icon">🤝</span>
+    </a>
+    <a class="dock-item" data-page="settings" onclick="App.navigate('settings')">
+      <span class="dock-icon">⚙️</span>
+    </a>
+  </nav>
+
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
@@ -133,6 +152,5 @@
       App.init();
     });
   </script>
-<script src="/js/cookie-consent.js"></script>
 </body>
 </html>

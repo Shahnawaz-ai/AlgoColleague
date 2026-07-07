@@ -1,31 +1,4 @@
-# ── Dependencies ──────────────────────────────────────────────
 node_modules/
-
-# ── Environment / Secrets ─────────────────────────────────────
 .env
-.env.local
-.env.production
-.env.staging
-# (keep .env.example — it's the safe template)
-
-# ── Database ──────────────────────────────────────────────────
-data/*.sqlite
-data/*.db
-data/*.db-journal
-data/*.db-wal
-data/*.db-shm
-
-# ── Logs ──────────────────────────────────────────────────────
-logs/
-*.log
-npm-debug.log*
-
-# ── OS / Editor ───────────────────────────────────────────────
+data/
 .DS_Store
-Thumbs.db
-.vscode/
-.idea/
-
-# ── Build artifacts ───────────────────────────────────────────
-dist/
-build/

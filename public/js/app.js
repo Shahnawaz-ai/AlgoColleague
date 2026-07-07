@@ -23,17 +23,10 @@ const App = {
     // Check auth status
     await this.checkAuth();
 
-    // If not authenticated and not already set up, show onboarding
+    // If not authenticated, redirect to /connect
     if (!this.authStatus?.authenticated) {
-      // Check if credentials are configured
-      try {
-        const configured = await this.api('/api/auth/configured');
-        if (!configured.configured) {
-          // No credentials — show full onboarding
-          this.navigate('onboarding');
-          return;
-        }
-      } catch (e) { /* ignore, fall through */ }
+      window.location.href = '/connect';
+      return;
     }
 
     // Navigate to initial page
