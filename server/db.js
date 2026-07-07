@@ -1,52 +1,18 @@
-const initSqlJs = require('sql.js');
-const path = require('path');
-const fs = require('fs');
+const { createClient } = require('@libsql/client');
+require('dotenv').config();
 
-const DB_PATH = path.join(__dirname, '..', 'data', 'linkedin_manager.db');
-
-// Ensure data directory exists
-fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
-
-let db = null;
-
-async function getDb() {
-  if (db) return db;
-
-  const SQL = await initSqlJs();
-
-  // Load existing database or create new one
-  if (fs.existsSync(DB_PATH)) {
-    const buffer = fs.readFileSync(DB_PATH);
-    db = new SQL.Database(buffer);
-  } else {
-    db = new SQL.Database();
-  }
-
-  return db;
+if (!process.env.TURSO_DATABASE_URL || !process.env.TURSO_AUTH_TOKEN) {
+  console.error("❌ Missing TURSO_DATABASE_URL or TURSO_AUTH_TOKEN in environment variables.");
+  process.exit(1);
 }
 
-function saveDb() {
-  if (!db) return;
-  const data = db.export();
-  const buffer = Buffer.from(data);
-  fs.writeFileSync(DB_PATH, buffer);
-}
-
-// Auto-save every 30 seconds
-setInterval(() => {
-  if (db) saveDb();
-}, 30000);
-
-// Save on process exit
-process.on('exit', () => { if (db) saveDb(); });
-process.on('SIGINT', () => { if (db) saveDb(); process.exit(0); });
-process.on('SIGTERM', () => { if (db) saveDb(); process.exit(0); });
+const client = createClient({
+  url: process.env.TURSO_DATABASE_URL,
+  authToken: process.env.TURSO_AUTH_TOKEN,
+});
 
 async function initialize() {
-  const database = await getDb();
-
-  database.run(`
-    -- OAuth tokens and user profile
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
@@ -54,7 +20,7 @@ async function initialize() {
     )
   `);
 
-  database.run(`
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS posts (
       id TEXT PRIMARY KEY,
       content TEXT NOT NULL,
@@ -74,7 +40,7 @@ async function initialize() {
     )
   `);
 
-  database.run(`
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS templates (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -87,7 +53,7 @@ async function initialize() {
     )
   `);
 
-  database.run(`
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS connections (
       id TEXT PRIMARY KEY,
       linkedin_id TEXT,
@@ -103,7 +69,7 @@ async function initialize() {
     )
   `);
 
-  database.run(`
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS analytics (
       id TEXT PRIMARY KEY,
       post_id TEXT NOT NULL,
@@ -118,7 +84,7 @@ async function initialize() {
     )
   `);
 
-  database.run(`
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS comments (
       id TEXT PRIMARY KEY,
       post_id TEXT NOT NULL,
@@ -135,7 +101,7 @@ async function initialize() {
     )
   `);
 
-  database.run(`
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS activity_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       action TEXT NOT NULL,
@@ -146,7 +112,7 @@ async function initialize() {
     )
   `);
 
-  database.run(`
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS auto_response_rules (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -159,7 +125,6 @@ async function initialize() {
     )
   `);
 
-  // Create indexes (ignore errors if they exist)
   const indexes = [
     'CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status)',
     'CREATE INDEX IF NOT EXISTS idx_posts_scheduled ON posts(scheduled_at)',
@@ -171,66 +136,62 @@ async function initialize() {
   ];
 
   for (const idx of indexes) {
-    try { database.run(idx); } catch (e) { /* index may already exist */ }
+    try { await client.execute(idx); } catch (e) { /* ignore */ }
   }
 
-  saveDb();
-  console.log('✅ Database initialized successfully');
+  console.log('✅ Remote Turso Database initialized successfully');
 }
 
-// --- Helper functions wrapping sql.js API ---
-
-function prepare(sql) {
-  return {
-    // Run with params, return changes info
-    run(...params) {
-      db.run(sql, params);
-      saveDb();
-    },
-    // Get single row
-    get(...params) {
-      const stmt = db.prepare(sql);
-      stmt.bind(params);
-      let row = null;
-      if (stmt.step()) {
-        row = stmt.getAsObject();
-      }
-      stmt.free();
-      return row;
-    },
-    // Get all rows
-    all(...params) {
-      const results = [];
-      const stmt = db.prepare(sql);
-      stmt.bind(params);
-      while (stmt.step()) {
-        results.push(stmt.getAsObject());
-      }
-      stmt.free();
-      return results;
-    },
-  };
+async function dbRun(sql, ...params) {
+  try {
+    const res = await client.execute({ sql, args: params });
+    // Return lastInsertRowid or rowsAffected to match standard sqlite behaviors if needed
+    return res;
+  } catch (err) {
+    console.error('dbRun error:', err);
+    throw err;
+  }
 }
 
-function logActivity(action, entityType, entityId, details) {
-  prepare(
-    'INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?, ?, ?, ?)'
-  ).run(action, entityType, entityId, typeof details === 'object' ? JSON.stringify(details) : details);
+async function dbGet(sql, ...params) {
+  try {
+    const res = await client.execute({ sql, args: params });
+    return res.rows.length > 0 ? res.rows[0] : null;
+  } catch (err) {
+    console.error('dbGet error:', err);
+    throw err;
+  }
 }
 
-function getSetting(key) {
-  const row = prepare('SELECT value FROM settings WHERE key = ?').get(key);
+async function dbAll(sql, ...params) {
+  try {
+    const res = await client.execute({ sql, args: params });
+    return res.rows;
+  } catch (err) {
+    console.error('dbAll error:', err);
+    throw err;
+  }
+}
+
+async function logActivity(action, entityType, entityId, details) {
+  await dbRun(
+    'INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?, ?, ?, ?)',
+    action, entityType, entityId, typeof details === 'object' ? JSON.stringify(details) : details
+  );
+}
+
+async function getSetting(key) {
+  const row = await dbGet('SELECT value FROM settings WHERE key = ?', key);
   return row ? row.value : null;
 }
 
-function setSetting(key, value) {
-  // Check if exists
-  const existing = prepare('SELECT key FROM settings WHERE key = ?').get(key);
+async function setSetting(key, value) {
+  const existing = await dbGet('SELECT key FROM settings WHERE key = ?', key);
   if (existing) {
-    prepare('UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?').run(value, key);
+    await dbRun('UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?', value, key);
   } else {
-    prepare('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)').run(key, value);
+    await dbRun('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)', key, value);
   }
 }
 
-module.exports = { getDb, initialize, prepare, logActivity, getSetting, setSetting, saveDb };
+module.exports = { initialize, client, dbRun, dbGet, dbAll, logActivity, getSetting, setSetting };

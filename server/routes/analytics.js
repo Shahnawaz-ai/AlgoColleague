@@ -1,16 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const { prepare } = require('../db');
+const { dbGet, dbAll, dbRun } = require('../db');
 
 // Dashboard overview
-router.get('/overview', (req, res) => {
-  const totalPosts = prepare('SELECT COUNT(*) as count FROM posts').get().count;
-  const publishedPosts = prepare("SELECT COUNT(*) as count FROM posts WHERE status = 'published'").get().count;
-  const scheduledPosts = prepare("SELECT COUNT(*) as count FROM posts WHERE status = 'queued'").get().count;
-  const draftPosts = prepare("SELECT COUNT(*) as count FROM posts WHERE status = 'draft'").get().count;
-  const failedPosts = prepare("SELECT COUNT(*) as count FROM posts WHERE status = 'failed'").get().count;
+router.get('/overview', async (req, res) => {
+  const totalPosts = await dbGet('SELECT COUNT(*) as count FROM posts').count;
+  const publishedPosts = await dbGet("SELECT COUNT(*) as count FROM posts WHERE status = 'published'").count;
+  const scheduledPosts = await dbGet("SELECT COUNT(*) as count FROM posts WHERE status = 'queued'").count;
+  const draftPosts = await dbGet("SELECT COUNT(*) as count FROM posts WHERE status = 'draft'").count;
+  const failedPosts = await dbGet("SELECT COUNT(*) as count FROM posts WHERE status = 'failed'").count;
 
-  const engagement = prepare(`
+  const engagement = await dbGet(`
     SELECT
       COALESCE(SUM(likes), 0) as total_likes,
       COALESCE(SUM(comments), 0) as total_comments,
@@ -18,29 +18,29 @@ router.get('/overview', (req, res) => {
       COALESCE(SUM(impressions), 0) as total_impressions,
       COALESCE(AVG(engagement_rate), 0) as avg_engagement_rate
     FROM analytics
-  `).get();
+  `);
 
-  const recentActivity = prepare(
+  const recentActivity = await dbGet(
     'SELECT * FROM activity_log ORDER BY created_at DESC LIMIT 15'
   ).all();
 
-  const upcomingPosts = prepare(
+  const upcomingPosts = await dbAll(
     "SELECT * FROM posts WHERE status = 'queued' ORDER BY scheduled_at ASC LIMIT 10"
-  ).all().map(p => ({
+  ).map(p => ({
     ...p,
     media_urls: JSON.parse(p.media_urls || '[]'),
     tags: JSON.parse(p.tags || '[]'),
   }));
 
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const postsThisWeek = prepare(
+  const postsThisWeek = await dbAll(
     "SELECT COUNT(*) as count FROM posts WHERE status = 'published' AND published_at >= ?"
-  ).get(weekAgo).count;
+  , weekAgo).count;
 
   const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const postsThisMonth = prepare(
+  const postsThisMonth = await dbGet(
     "SELECT COUNT(*) as count FROM posts WHERE status = 'published' AND published_at >= ?"
-  ).get(monthAgo).count;
+  , monthAgo).count;
 
   res.json({
     stats: { totalPosts, publishedPosts, scheduledPosts, draftPosts, failedPosts, postsThisWeek, postsThisMonth },
@@ -51,8 +51,8 @@ router.get('/overview', (req, res) => {
 });
 
 // Per-post analytics
-router.get('/posts/:id', (req, res) => {
-  const analytics = prepare('SELECT * FROM analytics WHERE post_id = ?').get(req.params.id);
+router.get('/posts/:id', async (req, res) => {
+  const analytics = await dbGet('SELECT * FROM analytics WHERE post_id = ?', req.params.id);
   if (!analytics) return res.status(404).json({ error: 'No analytics found for this post' });
 
   analytics.reactions_breakdown = JSON.parse(analytics.reactions_breakdown || '{}');
@@ -60,10 +60,10 @@ router.get('/posts/:id', (req, res) => {
 });
 
 // Best posting times
-router.get('/best-times', (req, res) => {
+router.get('/best-times', async (req, res) => {
   const published = prepare(
     "SELECT published_at FROM posts WHERE status = 'published' AND published_at IS NOT NULL"
-  ).all();
+  );
 
   const hourCounts = new Array(24).fill(0);
   const dayCounts = new Array(7).fill(0);
@@ -75,12 +75,12 @@ router.get('/best-times', (req, res) => {
   });
 
   const hourEngagement = new Array(24).fill(0);
-  const postsWithAnalytics = prepare(`
+  const postsWithAnalytics = await dbAll(`
     SELECT p.published_at, a.likes, a.comments, a.shares
     FROM posts p
     JOIN analytics a ON a.post_id = p.id
     WHERE p.status = 'published' AND p.published_at IS NOT NULL
-  `).all();
+  `);
 
   postsWithAnalytics.forEach(p => {
     const hour = new Date(p.published_at).getHours();
@@ -91,11 +91,11 @@ router.get('/best-times', (req, res) => {
 });
 
 // Engagement trend
-router.get('/trend', (req, res) => {
+router.get('/trend', async (req, res) => {
   const { days = 30 } = req.query;
   const since = new Date(Date.now() - parseInt(days) * 24 * 60 * 60 * 1000).toISOString();
 
-  const posts = prepare(`
+  const posts = await dbAll(`
     SELECT
       DATE(p.published_at) as date,
       COUNT(*) as post_count,
@@ -107,7 +107,7 @@ router.get('/trend', (req, res) => {
     WHERE p.status = 'published' AND p.published_at >= ?
     GROUP BY DATE(p.published_at)
     ORDER BY date ASC
-  `).all(since);
+  `, since);
 
   res.json({ trend: posts, period: parseInt(days) });
 });

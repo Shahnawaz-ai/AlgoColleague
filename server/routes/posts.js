@@ -4,7 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
-const { prepare, logActivity } = require('../db');
+const { dbGet, dbAll, dbRun, logActivity } = require('../db');
 const linkedInAPI = require('../linkedin-api');
 
 // Configure multer for image uploads
@@ -30,7 +30,7 @@ const upload = multer({
 });
 
 // List posts with filters
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const { status, from, to, limit = 50, offset = 0, search } = req.query;
   let query = 'SELECT * FROM posts WHERE 1=1';
   let countQuery = 'SELECT COUNT(*) as count FROM posts WHERE 1=1';
@@ -62,8 +62,8 @@ router.get('/', (req, res) => {
   query += ' ORDER BY COALESCE(scheduled_at, created_at) DESC LIMIT ? OFFSET ?';
   params.push(parseInt(limit), parseInt(offset));
 
-  const posts = prepare(query).all(...params);
-  const total = prepare(countQuery).get(...countParams).count;
+  const posts = await dbGet(query).all(...params);
+  const total = await dbRun(countQuery, ...countParams).count;
 
   const parsed = posts.map(p => ({
     ...p,
@@ -75,19 +75,19 @@ router.get('/', (req, res) => {
 });
 
 // Get single post
-router.get('/:id', (req, res) => {
-  const post = prepare('SELECT * FROM posts WHERE id = ?').get(req.params.id);
+router.get('/:id', async (req, res) => {
+  const post = await dbGet('SELECT * FROM posts WHERE id = ?', req.params.id);
   if (!post) return res.status(404).json({ error: 'Post not found' });
 
   post.media_urls = JSON.parse(post.media_urls || '[]');
   post.tags = JSON.parse(post.tags || '[]');
 
-  const analytics = prepare('SELECT * FROM analytics WHERE post_id = ?').get(post.id);
+  const analytics = await dbGet('SELECT * FROM analytics WHERE post_id = ?', post.id);
   res.json({ post, analytics });
 });
 
 // Create new post
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { content, post_type = 'text', scheduled_at, tags = [], status = 'draft', template_id } = req.body;
 
   if (!content || !content.trim()) {
@@ -102,7 +102,7 @@ router.post('/', (req, res) => {
   const plan = getSetting('subscription_plan') || 'starter';
   if (plan === 'starter') {
     const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
-    const count = prepare('SELECT COUNT(*) as count FROM posts WHERE created_at LIKE ? AND status != ?').get(`${currentMonth}%`, 'failed').count;
+    const count = await dbGet('SELECT COUNT(*) as count FROM posts WHERE created_at LIKE ? AND status != ?', `${currentMonth}%`, 'failed').count;
     if (count >= 6) {
       return res.status(403).json({ 
         error: 'You have reached your free limit of 6 posts this month. To schedule more posts, please upgrade to the Pro plan.' 
@@ -111,14 +111,14 @@ router.post('/', (req, res) => {
   }
   // -------------------------
 
-  prepare(`
+  await dbGet(`
     INSERT INTO posts (id, content, post_type, scheduled_at, status, tags, template_id, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-  `).run(id, content.trim(), post_type, scheduled_at || null, finalStatus, JSON.stringify(tags), template_id || null);
+  `, id, content.trim(), post_type, scheduled_at || null, finalStatus, JSON.stringify(tags), template_id || null);
 
   logActivity('post_created', 'post', id, `Created ${finalStatus} post`);
 
-  const post = prepare('SELECT * FROM posts WHERE id = ?').get(id);
+  const post = await dbRun('SELECT * FROM posts WHERE id = ?', id);
   post.media_urls = JSON.parse(post.media_urls || '[]');
   post.tags = JSON.parse(post.tags || '[]');
 
@@ -126,8 +126,8 @@ router.post('/', (req, res) => {
 });
 
 // Update post
-router.put('/:id', (req, res) => {
-  const post = prepare('SELECT * FROM posts WHERE id = ?').get(req.params.id);
+router.put('/:id', async (req, res) => {
+  const post = await dbGet('SELECT * FROM posts WHERE id = ?', req.params.id);
   if (!post) return res.status(404).json({ error: 'Post not found' });
   if (post.status === 'published' || post.status === 'publishing') {
     return res.status(400).json({ error: 'Cannot edit a published or publishing post' });
@@ -151,10 +151,10 @@ router.put('/:id', (req, res) => {
   updates.push('updated_at = CURRENT_TIMESTAMP');
   params.push(req.params.id);
 
-  prepare(`UPDATE posts SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+  await dbGet(`UPDATE posts SET ${updates.join(', ')} WHERE id = ?`, ...params);
   logActivity('post_updated', 'post', req.params.id, 'Post updated');
 
-  const updated = prepare('SELECT * FROM posts WHERE id = ?').get(req.params.id);
+  const updated = await dbRun('SELECT * FROM posts WHERE id = ?', req.params.id);
   updated.media_urls = JSON.parse(updated.media_urls || '[]');
   updated.tags = JSON.parse(updated.tags || '[]');
 
@@ -162,21 +162,21 @@ router.put('/:id', (req, res) => {
 });
 
 // Delete post
-router.delete('/:id', (req, res) => {
-  const post = prepare('SELECT * FROM posts WHERE id = ?').get(req.params.id);
+router.delete('/:id', async (req, res) => {
+  const post = await dbGet('SELECT * FROM posts WHERE id = ?', req.params.id);
   if (!post) return res.status(404).json({ error: 'Post not found' });
   if (post.status === 'publishing') {
     return res.status(400).json({ error: 'Cannot delete a post that is currently publishing' });
   }
 
-  prepare('DELETE FROM posts WHERE id = ?').run(req.params.id);
+  await dbGet('DELETE FROM posts WHERE id = ?', req.params.id);
   logActivity('post_deleted', 'post', req.params.id, 'Post deleted');
   res.json({ success: true });
 });
 
 // Publish immediately
 router.post('/:id/publish-now', async (req, res) => {
-  const post = prepare('SELECT * FROM posts WHERE id = ?').get(req.params.id);
+  const post = await dbRun('SELECT * FROM posts WHERE id = ?', req.params.id);
   if (!post) return res.status(404).json({ error: 'Post not found' });
   if (post.status === 'published') {
     return res.status(400).json({ error: 'Post already published' });
@@ -187,7 +187,7 @@ router.post('/:id/publish-now', async (req, res) => {
   }
 
   try {
-    prepare("UPDATE posts SET status = 'publishing', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(post.id);
+    await dbGet("UPDATE posts SET status = 'publishing', updated_at = CURRENT_TIMESTAMP WHERE id = ?", post.id);
 
     const mediaUrls = JSON.parse(post.media_urls || '[]');
     let result;
@@ -212,7 +212,7 @@ router.post('/:id/publish-now', async (req, res) => {
 
 // Upload image for a post
 router.post('/:id/upload-image', upload.single('image'), (req, res) => {
-  const post = prepare('SELECT * FROM posts WHERE id = ?').get(req.params.id);
+  const post = prepare('SELECT * FROM posts WHERE id = ?', req.params.id);
   if (!post) return res.status(404).json({ error: 'Post not found' });
 
   if (!req.file) {

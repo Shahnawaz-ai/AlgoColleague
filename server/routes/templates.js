@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
-const { prepare, logActivity } = require('../db');
+const { dbGet, dbAll, dbRun, logActivity } = require('../db');
 
 // List all templates
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const { category } = req.query;
   let query = 'SELECT * FROM templates';
   const params = [];
@@ -16,44 +16,44 @@ router.get('/', (req, res) => {
 
   query += ' ORDER BY usage_count DESC, created_at DESC';
 
-  const templates = prepare(query).all(...params);
+  const templates = await dbGet(query).all(...params);
   const parsed = templates.map(t => ({ ...t, tags: JSON.parse(t.tags || '[]') }));
 
   res.json({ templates: parsed });
 });
 
 // Get single template
-router.get('/:id', (req, res) => {
-  const template = prepare('SELECT * FROM templates WHERE id = ?').get(req.params.id);
+router.get('/:id', async (req, res) => {
+  const template = await dbRun('SELECT * FROM templates WHERE id = ?', req.params.id);
   if (!template) return res.status(404).json({ error: 'Template not found' });
   template.tags = JSON.parse(template.tags || '[]');
   res.json({ template });
 });
 
 // Create template
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { name, category = 'general', content, tags = [] } = req.body;
   if (!name || !content) {
     return res.status(400).json({ error: 'Name and content are required' });
   }
 
   const id = uuidv4();
-  prepare(`
+  await dbGet(`
     INSERT INTO templates (id, name, category, content, tags, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-  `).run(id, name, category, content, JSON.stringify(tags));
+  `, id, name, category, content, JSON.stringify(tags));
 
   logActivity('template_created', 'template', id, `Created template: ${name}`);
 
-  const template = prepare('SELECT * FROM templates WHERE id = ?').get(id);
+  const template = await dbRun('SELECT * FROM templates WHERE id = ?', id);
   template.tags = JSON.parse(template.tags || '[]');
 
   res.status(201).json({ template });
 });
 
 // Update template
-router.put('/:id', (req, res) => {
-  const template = prepare('SELECT * FROM templates WHERE id = ?').get(req.params.id);
+router.put('/:id', async (req, res) => {
+  const template = await dbGet('SELECT * FROM templates WHERE id = ?', req.params.id);
   if (!template) return res.status(404).json({ error: 'Template not found' });
 
   const { name, category, content, tags } = req.body;
@@ -70,32 +70,32 @@ router.put('/:id', (req, res) => {
   updates.push('updated_at = CURRENT_TIMESTAMP');
   params.push(req.params.id);
 
-  prepare(`UPDATE templates SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+  await dbGet(`UPDATE templates SET ${updates.join(', ')} WHERE id = ?`, ...params);
   logActivity('template_updated', 'template', req.params.id, 'Template updated');
 
-  const updated = prepare('SELECT * FROM templates WHERE id = ?').get(req.params.id);
+  const updated = await dbRun('SELECT * FROM templates WHERE id = ?', req.params.id);
   updated.tags = JSON.parse(updated.tags || '[]');
 
   res.json({ template: updated });
 });
 
 // Delete template
-router.delete('/:id', (req, res) => {
-  const template = prepare('SELECT * FROM templates WHERE id = ?').get(req.params.id);
+router.delete('/:id', async (req, res) => {
+  const template = await dbGet('SELECT * FROM templates WHERE id = ?', req.params.id);
   if (!template) return res.status(404).json({ error: 'Template not found' });
 
-  prepare('DELETE FROM templates WHERE id = ?').run(req.params.id);
+  await dbGet('DELETE FROM templates WHERE id = ?', req.params.id);
   logActivity('template_deleted', 'template', req.params.id, 'Template deleted');
 
   res.json({ success: true });
 });
 
 // Use template
-router.post('/:id/use', (req, res) => {
-  const template = prepare('SELECT * FROM templates WHERE id = ?').get(req.params.id);
+router.post('/:id/use', async (req, res) => {
+  const template = prepare('SELECT * FROM templates WHERE id = ?', req.params.id);
   if (!template) return res.status(404).json({ error: 'Template not found' });
 
-  prepare('UPDATE templates SET usage_count = usage_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+  await dbGet('UPDATE templates SET usage_count = usage_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
     .run(req.params.id);
 
   template.tags = JSON.parse(template.tags || '[]');
@@ -105,8 +105,8 @@ router.post('/:id/use', (req, res) => {
 });
 
 // Seed default templates
-router.post('/seed', (req, res) => {
-  const existing = prepare('SELECT COUNT(*) as count FROM templates').get().count;
+router.post('/seed', async (req, res) => {
+  const existing = prepare('SELECT COUNT(*) as count FROM templates').count;
   if (existing > 0) {
     return res.json({ message: 'Templates already exist', seeded: 0 });
   }

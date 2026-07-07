@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
-const { prepare, logActivity } = require('../db');
+const { dbGet, dbAll, dbRun, logActivity } = require('../db');
 const linkedInAPI = require('../linkedin-api');
 
 // List comments
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const { post_id, unreplied, limit = 50 } = req.query;
   let query = `
     SELECT c.*, p.content as post_content, p.linkedin_post_id
@@ -26,39 +26,39 @@ router.get('/', (req, res) => {
   query += ' ORDER BY c.created_at DESC LIMIT ?';
   params.push(parseInt(limit));
 
-  const comments = prepare(query).all(...params);
+  const comments = await dbGet(query).all(...params);
 
   const stats = {
-    total: prepare('SELECT COUNT(*) as c FROM comments').get().c,
-    unreplied: prepare('SELECT COUNT(*) as c FROM comments WHERE is_reply_sent = 0').get().c,
-    replied: prepare('SELECT COUNT(*) as c FROM comments WHERE is_reply_sent = 1').get().c,
+    total: await dbAll('SELECT COUNT(*) as c FROM comments').c,
+    unreplied: await dbGet('SELECT COUNT(*) as c FROM comments WHERE is_reply_sent = 0').c,
+    replied: await dbGet('SELECT COUNT(*) as c FROM comments WHERE is_reply_sent = 1').c,
   };
 
   res.json({ comments, stats });
 });
 
 // Add comment
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { post_id, author_name, author_headline, content, linkedin_comment_id } = req.body;
   if (!post_id || !content) {
     return res.status(400).json({ error: 'post_id and content are required' });
   }
 
   const id = uuidv4();
-  prepare(`
+  await dbGet(`
     INSERT INTO comments (id, post_id, linkedin_comment_id, author_name, author_headline, content, created_at)
     VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
   `).run(id, post_id, linkedin_comment_id || null, author_name || 'Unknown', author_headline || '', content);
 
   logActivity('comment_received', 'comment', id, `New comment from ${author_name}`);
 
-  const comment = prepare('SELECT * FROM comments WHERE id = ?').get(id);
+  const comment = await dbRun('SELECT * FROM comments WHERE id = ?', id);
   res.status(201).json({ comment });
 });
 
 // Reply to a comment
 router.post('/:id/reply', async (req, res) => {
-  const comment = prepare('SELECT * FROM comments WHERE id = ?').get(req.params.id);
+  const comment = await dbGet('SELECT * FROM comments WHERE id = ?', req.params.id);
   if (!comment) return res.status(404).json({ error: 'Comment not found' });
 
   const { reply_content } = req.body;
@@ -67,7 +67,7 @@ router.post('/:id/reply', async (req, res) => {
   let sentViaApi = false;
   if (linkedInAPI.isTokenValid() && comment.linkedin_comment_id) {
     try {
-      const post = prepare('SELECT * FROM posts WHERE id = ?').get(comment.post_id);
+      const post = await dbGet('SELECT * FROM posts WHERE id = ?', comment.post_id);
       if (post && post.linkedin_post_id) {
         await linkedInAPI.replyToComment(post.linkedin_post_id, comment.linkedin_comment_id, reply_content);
         sentViaApi = true;
@@ -77,7 +77,7 @@ router.post('/:id/reply', async (req, res) => {
     }
   }
 
-  prepare(`UPDATE comments SET is_reply_sent = 1, reply_content = ?, replied_at = CURRENT_TIMESTAMP WHERE id = ?`)
+  await dbGet(`UPDATE comments SET is_reply_sent = 1, reply_content = ?, replied_at = CURRENT_TIMESTAMP WHERE id = ?`)
     .run(reply_content, req.params.id);
 
   logActivity('comment_replied', 'comment', req.params.id, `Replied to ${comment.author_name}`);
@@ -85,13 +85,13 @@ router.post('/:id/reply', async (req, res) => {
 });
 
 // Get auto-response rules
-router.get('/auto-rules', (req, res) => {
-  const rules = prepare('SELECT * FROM auto_response_rules ORDER BY created_at DESC').all();
+router.get('/auto-rules', async (req, res) => {
+  const rules = prepare('SELECT * FROM auto_response_rules ORDER BY created_at DESC');
   res.json({ rules });
 });
 
 // Create auto-response rule
-router.post('/auto-rules', (req, res) => {
+router.post('/auto-rules', async (req, res) => {
   const { name, trigger_type = 'keyword', trigger_value, response_template } = req.body;
   if (!name || !response_template) {
     return res.status(400).json({ error: 'Name and response_template are required' });
@@ -101,17 +101,17 @@ router.post('/auto-rules', (req, res) => {
   prepare(`
     INSERT INTO auto_response_rules (id, name, trigger_type, trigger_value, response_template, created_at)
     VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-  `).run(id, name, trigger_type, trigger_value || '', response_template);
+  `, id, name, trigger_type, trigger_value || '', response_template);
 
   logActivity('auto_rule_created', 'auto_rule', id, `Created rule: ${name}`);
 
-  const rule = prepare('SELECT * FROM auto_response_rules WHERE id = ?').get(id);
+  const rule = await dbRun('SELECT * FROM auto_response_rules WHERE id = ?', id);
   res.status(201).json({ rule });
 });
 
 // Update auto-response rule
-router.put('/auto-rules/:id', (req, res) => {
-  const rule = prepare('SELECT * FROM auto_response_rules WHERE id = ?').get(req.params.id);
+router.put('/auto-rules/:id', async (req, res) => {
+  const rule = await dbGet('SELECT * FROM auto_response_rules WHERE id = ?', req.params.id);
   if (!rule) return res.status(404).json({ error: 'Rule not found' });
 
   const { name, trigger_type, trigger_value, response_template, is_active } = req.body;
@@ -127,15 +127,15 @@ router.put('/auto-rules/:id', (req, res) => {
   if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 
   params.push(req.params.id);
-  prepare(`UPDATE auto_response_rules SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+  await dbGet(`UPDATE auto_response_rules SET ${updates.join(', ')} WHERE id = ?`, ...params);
 
-  const updated = prepare('SELECT * FROM auto_response_rules WHERE id = ?').get(req.params.id);
+  const updated = await dbRun('SELECT * FROM auto_response_rules WHERE id = ?', req.params.id);
   res.json({ rule: updated });
 });
 
 // Delete auto-response rule
-router.delete('/auto-rules/:id', (req, res) => {
-  prepare('DELETE FROM auto_response_rules WHERE id = ?').run(req.params.id);
+router.delete('/auto-rules/:id', async (req, res) => {
+  prepare('DELETE FROM auto_response_rules WHERE id = ?', req.params.id);
   logActivity('auto_rule_deleted', 'auto_rule', req.params.id, 'Rule deleted');
   res.json({ success: true });
 });

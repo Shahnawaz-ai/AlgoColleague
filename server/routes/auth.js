@@ -4,7 +4,7 @@ const linkedInAPI = require('../linkedin-api');
 const { getSetting, setSetting, logActivity } = require('../db');
 
 // Check if credentials exist
-router.get('/credentials', (req, res) => {
+router.get('/credentials', async (req, res) => {
   const clientId = getSetting('linkedin_client_id');
   const clientSecret = getSetting('linkedin_client_secret');
   res.json({
@@ -13,7 +13,7 @@ router.get('/credentials', (req, res) => {
 });
 
 // Save Developer App credentials
-router.post('/credentials', (req, res) => {
+router.post('/credentials', async (req, res) => {
   const { clientId, clientSecret } = req.body;
   if (!clientId || !clientSecret) {
     return res.status(400).json({ error: 'Client ID and Secret are required' });
@@ -25,7 +25,7 @@ router.post('/credentials', (req, res) => {
 });
 
 // Get the OAuth login URL
-router.get('/url', (req, res) => {
+router.get('/url', async (req, res) => {
   try {
     const redirectUri = req.query.redirectUri;
     if (!redirectUri) return res.status(400).json({ error: 'redirectUri is required' });
@@ -52,7 +52,7 @@ router.post('/callback', async (req, res) => {
 });
 
 // Check authentication status
-router.get('/status', (req, res) => {
+router.get('/status', async (req, res) => {
   const isAuthenticated = linkedInAPI.isTokenValid();
   const profile = isAuthenticated ? linkedInAPI.getProfile() : null;
   res.json({
@@ -63,7 +63,7 @@ router.get('/status', (req, res) => {
 });
 
 // Disconnect
-router.post('/logout', (req, res) => {
+router.post('/logout', async (req, res) => {
   setSetting('linkedin_token', '');
   setSetting('linkedin_token_expiry', '0');
   setSetting('user_id', '');

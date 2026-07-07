@@ -8,6 +8,7 @@
     "dev": "node --watch server/index.js"
   },
   "dependencies": {
+    "@libsql/client": "^0.17.4",
     "axios": "^1.7.0",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
@@ -19,7 +20,6 @@
     "node-cron": "^3.0.3",
     "open": "^10.1.0",
     "puppeteer": "^25.3.0",
-    "sql.js": "^1.11.0",
     "uuid": "^10.0.0"
   },
   "engines": {

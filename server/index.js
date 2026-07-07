@@ -5,44 +5,37 @@ const path       = require('path');
 const helmet     = require('helmet');
 const compression = require('compression');
 const rateLimit  = require('express-rate-limit');
-const { initialize, prepare } = require('./db');
-const scheduler  = require('./scheduler');
+const { initialize, dbGet, dbRun } = require('./db');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
-const isProd = process.env.NODE_ENV === 'production';
+const isProd = process.env.NODE_ENV === 'production' || process.env.VERCEL;
 
-// ── Security headers (helmet) ──────────────────────────────────
 app.use(helmet({
-  contentSecurityPolicy: false, // disabled — we use inline scripts in frontend
+  contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
 }));
 
-// ── Gzip compression ──────────────────────────────────────────
 app.use(compression());
 
-// ── CORS ──────────────────────────────────────────────────────
 app.use(cors({
-  origin: isProd ? process.env.APP_URL : true,
+  origin: isProd ? process.env.APP_URL || true : true,
   credentials: true,
 }));
 
-// ── Body parsing ──────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// ── Rate limiting ─────────────────────────────────────────────
-// Strict limit on auth endpoints (prevent brute force)
 const authLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
+  windowMs: 60 * 1000,
   max: 100,
   message: { error: 'Too many requests, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
-// General API limit
+
 const apiLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
+  windowMs: 60 * 1000,
   max: 1000,
   message: { error: 'Too many requests, please try again later.' },
   standardHeaders: true,
@@ -51,7 +44,6 @@ const apiLimiter = rateLimit({
 app.use('/api/auth', authLimiter);
 app.use('/api/', apiLimiter);
 
-// ── Static files ──────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/uploads', express.static(path.join(__dirname, '..', 'data', 'uploads')));
 
@@ -63,46 +55,32 @@ app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/connections', require('./routes/connections'));
 app.use('/api/comments', require('./routes/comments'));
 
-// Scheduler status endpoint
-app.get('/api/scheduler/status', (req, res) => {
-  res.json(scheduler.getStatus());
-});
-
-// Activity log endpoint
-app.get('/api/activity', (req, res) => {
-  const { limit = 30 } = req.query;
-  const logs = prepare('SELECT * FROM activity_log ORDER BY created_at DESC LIMIT ?').all(parseInt(limit));
-  res.json({ logs });
-});
+// Vercel Cron Endpoint
+app.use('/api/cron', require('./routes/cron'));
 
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'healthy',
     uptime: process.uptime(),
-    scheduler: scheduler.getStatus(),
     timestamp: new Date().toISOString(),
   });
 });
 
-// Landing page (marketing home)
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'landing.html'));
 });
 
-// Connect page — LinkedIn setup & OAuth flow
 app.get('/connect', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'connect.html'));
 });
 
-// Dashboard SPA — serves app.html for /app and all other non-API routes
 app.get('*', (req, res) => {
   if (!req.path.startsWith('/api')) {
     res.sendFile(path.join(__dirname, '..', 'public', 'app.html'));
   }
 });
 
-// Global error handler — hide details in production
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({
@@ -110,15 +88,13 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Initialize and start
 async function start() {
   try {
-    // Initialize database (async for sql.js)
     await initialize();
 
     // Seed default templates
-    const templateCount = prepare('SELECT COUNT(*) as count FROM templates').get().count;
-    if (templateCount === 0) {
+    const templateCountRow = await dbGet('SELECT COUNT(*) as count FROM templates');
+    if (templateCountRow && templateCountRow.count === 0) {
       console.log('📝 Seeding default templates...');
       const { v4: uuidv4 } = require('uuid');
       const defaults = [
@@ -131,34 +107,30 @@ async function start() {
       ];
 
       for (const t of defaults) {
-        prepare('INSERT INTO templates (id, name, category, content, tags, created_at, updated_at) VALUES (?, ?, ?, ?, \'[]\', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)')
-          .run(uuidv4(), t.name, t.category, t.content);
+        await dbRun('INSERT INTO templates (id, name, category, content, tags, created_at, updated_at) VALUES (?, ?, ?, ?, \'[]\', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+          uuidv4(), t.name, t.category, t.content);
       }
       console.log(`✅ Seeded ${defaults.length} default templates`);
     }
 
-    // Start scheduler
-    scheduler.start();
+    // Only start listen server if not running on Vercel
+    if (!process.env.VERCEL) {
+      app.listen(PORT, '0.0.0.0', async () => {
+        console.log(`\n✈️  Algo Colleague running at http://127.0.0.1:${PORT}`);
+        console.log(`   Mode: ${process.env.NODE_ENV === 'production' ? '🟢 production' : '🟡 development'}\n`);
+      });
+    }
 
-    // Start server
-    app.listen(PORT, '0.0.0.0', async () => {
-      console.log(`\n✈️  Algo Colleague running at http://127.0.0.1:${PORT}`);
-      console.log(`   Mode: ${process.env.NODE_ENV === 'production' ? '🟢 production' : '🟡 development'}\n`);
-
-      // Open in browser in development mode (delay to ensure DB is fully ready)
-      if (process.env.NODE_ENV !== 'production') {
-        try {
-          const open = (await import('open')).default;
-          open(`http://127.0.0.1:${PORT}`);
-        } catch (e) {
-          // open is optional
-        }
-      }
-    });
   } catch (error) {
     console.error('Failed to start:', error);
-    process.exit(1);
+    if (!process.env.VERCEL) {
+      process.exit(1);
+    }
   }
 }
 
+// In serverless environments, we still want to initialize the DB connection
 start();
+
+// Export the app for Vercel
+module.exports = app;
