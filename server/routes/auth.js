@@ -5,8 +5,10 @@ const { getSetting, setSetting, logActivity } = require('../db');
 
 // Check if credentials exist
 router.get('/credentials', async (req, res) => {
-  const clientId = await getSetting('linkedin_client_id');
-  const clientSecret = await getSetting('linkedin_client_secret');
+  const { getUserSetting } = require('../db');
+  const userId = req.auth.userId;
+  const clientId = await getUserSetting(userId, 'linkedin_client_id');
+  const clientSecret = await getUserSetting(userId, 'linkedin_client_secret');
   res.json({
     configured: !!(clientId && clientSecret)
   });
@@ -15,12 +17,14 @@ router.get('/credentials', async (req, res) => {
 // Save Developer App credentials
 router.post('/credentials', async (req, res) => {
   const { clientId, clientSecret } = req.body;
+  const { setUserSetting } = require('../db');
+  const userId = req.auth.userId;
   if (!clientId || !clientSecret) {
     return res.status(400).json({ error: 'Client ID and Secret are required' });
   }
-  await setSetting('linkedin_client_id', clientId.trim());
-  await setSetting('linkedin_client_secret', clientSecret.trim());
-  await logActivity('config_updated', 'system', null, 'LinkedIn API credentials updated');
+  await setUserSetting(userId, 'linkedin_client_id', clientId.trim());
+  await setUserSetting(userId, 'linkedin_client_secret', clientSecret.trim());
+  await logActivity('config_updated', 'user', userId, 'LinkedIn API credentials updated');
   res.json({ success: true });
 });
 
@@ -28,8 +32,9 @@ router.post('/credentials', async (req, res) => {
 router.get('/url', async (req, res) => {
   try {
     const redirectUri = req.query.redirectUri;
+    const userId = req.auth.userId;
     if (!redirectUri) return res.status(400).json({ error: 'redirectUri is required' });
-    const url = await linkedInAPI.getAuthorizationUrl(redirectUri);
+    const url = await linkedInAPI.getAuthorizationUrl(redirectUri, userId);
     res.json({ url });
   } catch (error) {
     res.status(500).json({ error: error.message });

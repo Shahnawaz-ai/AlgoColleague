@@ -10,6 +10,7 @@
   <style>
     :root {
       --bg: #03060d;
+      --bg-light: #0a0e17;
       --surface: rgba(255,255,255,0.03);
       --border: rgba(255,255,255,0.08);
       --primary: #6366f1;
@@ -17,7 +18,7 @@
       --text-1: #f8fafc;
       --text-2: #94a3b8;
       --text-3: #64748b;
-      --blur: blur(20px);
+      --success: #10b981;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -28,117 +29,176 @@
       color: var(--text-1);
       min-height: 100vh;
       display: flex;
-      flex-direction: column;
       overflow-x: hidden;
     }
 
-    /* Animated background glow */
-    .bg-glow {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 80vw;
-      height: 80vw;
-      background: radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 60%);
-      pointer-events: none;
-      z-index: 0;
-      animation: pulse 8s ease-in-out infinite alternate;
-    }
-    @keyframes pulse { 0% { opacity: 0.8; transform: translate(-50%, -50%) scale(0.95); } 100% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); } }
-
-    /* Nav */
-    .nav {
-      position: relative;
-      z-index: 10;
-      padding: 24px 40px;
+    /* Split Screen Layout */
+    .split-container {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
+      width: 100vw;
+      min-height: 100vh;
     }
-    .logo {
-      font-family: 'Space Grotesk', sans-serif;
-      font-weight: 800;
-      font-size: 20px;
-      color: white;
-      text-decoration: none;
-      letter-spacing: -0.5px;
-    }
-    .nav-link {
-      color: var(--text-2);
-      text-decoration: none;
-      font-size: 14px;
-      font-weight: 500;
-      transition: color 0.2s;
-    }
-    .nav-link:hover { color: white; }
 
-    /* Container */
-    .container {
-      position: relative;
-      z-index: 1;
+    /* Left Panel: Guide */
+    .left-panel {
       flex: 1;
+      background: var(--bg-light);
+      border-right: 1px solid var(--border);
+      padding: 60px 80px;
       display: flex;
-      align-items: center;
+      flex-direction: column;
       justify-content: center;
-      padding: 40px 20px;
-    }
-
-    /* Glass Card */
-    .card {
-      background: rgba(10, 14, 23, 0.7);
-      backdrop-filter: var(--blur);
-      -webkit-backdrop-filter: var(--blur);
-      border: 1px solid var(--border);
-      border-radius: 24px;
-      padding: 48px;
-      width: 100%;
-      max-width: 440px;
-      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
       position: relative;
       overflow: hidden;
     }
 
-    .card::before {
+    .left-panel::before {
       content: '';
       position: absolute;
-      top: 0; left: 0; right: 0; height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(99,102,241,0.5), transparent);
+      top: -20%; left: -20%;
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%);
+      border-radius: 50%;
+      pointer-events: none;
     }
 
-    .card-header {
-      text-align: center;
-      margin-bottom: 32px;
+    /* Right Panel: Form */
+    .right-panel {
+      flex: 1;
+      background: var(--bg);
+      padding: 60px 80px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .logo {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 800;
+      font-size: 24px;
+      color: white;
+      text-decoration: none;
+      letter-spacing: -0.5px;
+      position: absolute;
+      top: 40px;
+      left: 80px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
     
-    .icon-box {
-      width: 64px;
-      height: 64px;
+    .logo-icon {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, #6366f1, #3b82f6);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* Guide Typography */
+    h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 36px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      line-height: 1.2;
+    }
+
+    .guide-intro {
+      color: var(--text-2);
+      font-size: 16px;
+      line-height: 1.6;
+      margin-bottom: 40px;
+      max-width: 480px;
+    }
+
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      max-width: 480px;
+    }
+
+    .step {
+      display: flex;
+      gap: 16px;
+    }
+
+    .step-number {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
       background: rgba(99,102,241,0.1);
-      border: 1px solid rgba(99,102,241,0.2);
-      border-radius: 16px;
+      color: var(--primary);
+      font-weight: 600;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin: 0 auto 24px;
+      flex-shrink: 0;
+      border: 1px solid rgba(99,102,241,0.2);
     }
-    .icon-box svg { width: 32px; height: 32px; color: var(--primary); }
 
-    h1 {
-      font-family: 'Space Grotesk', sans-serif;
-      font-size: 28px;
-      font-weight: 700;
-      letter-spacing: -0.5px;
+    .step-content h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--text-1);
+    }
+
+    .step-content p {
+      font-size: 14px;
+      color: var(--text-2);
+      line-height: 1.5;
+    }
+    
+    .step-content a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+    .step-content a:hover { text-decoration: underline; }
+
+    .code-block {
+      background: #000;
+      border: 1px solid var(--border);
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 13px;
+      color: #38bdf8;
+      margin-top: 10px;
+      display: inline-block;
+      word-break: break-all;
+    }
+
+    /* Form Card */
+    .form-card {
+      width: 100%;
+      max-width: 400px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 40px;
+      backdrop-filter: blur(10px);
+    }
+
+    .form-header {
+      margin-bottom: 32px;
+      text-align: center;
+    }
+
+    .form-header h2 {
+      font-size: 24px;
+      font-weight: 600;
       margin-bottom: 8px;
     }
-    .subtitle {
+
+    .form-header p {
       color: var(--text-2);
-      font-size: 15px;
-      line-height: 1.5;
+      font-size: 14px;
     }
 
     /* Forms & Inputs */
-    .form-group { margin-bottom: 20px; }
+    .form-group { margin-bottom: 24px; }
     .form-group label {
       display: block;
       font-size: 13px;
@@ -149,9 +209,9 @@
     .form-group input {
       width: 100%;
       padding: 14px 16px;
-      background: rgba(0,0,0,0.4);
+      background: rgba(0,0,0,0.3);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 10px;
       color: white;
       font-size: 14px;
       transition: all 0.2s;
@@ -165,9 +225,9 @@
     /* Buttons */
     .btn {
       width: 100%;
-      padding: 14px;
+      padding: 16px;
       border: none;
-      border-radius: 12px;
+      border-radius: 10px;
       font-size: 15px;
       font-weight: 600;
       cursor: pointer;
@@ -182,101 +242,43 @@
     .btn-primary {
       background: var(--primary);
       color: white;
+      box-shadow: 0 4px 12px rgba(99,102,241,0.2);
     }
     .btn-primary:hover {
       background: var(--primary-hover);
       transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(99,102,241,0.3);
+    }
+    .btn-primary:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+      transform: none;
     }
 
-    .btn-linkedin {
-      background: #0077b5;
-      color: white;
-    }
-    .btn-linkedin:hover {
-      background: #006097;
-      transform: translateY(-1px);
-      box-shadow: 0 8px 24px rgba(0,119,181,0.3);
-    }
-    .btn-linkedin svg { fill: currentColor; width: 20px; height: 20px; }
-
-    /* Admin notice & Guide */
-    .admin-notice {
-      background: rgba(99,102,241,0.08);
-      border: 1px solid rgba(99,102,241,0.2);
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 20px;
-      font-size: 13px;
-      line-height: 1.6;
-      color: #cbd5e1;
-    }
-    .admin-notice b { color: var(--primary-lt); }
-    
-    .setup-guide {
-      background: rgba(0,0,0,0.2);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 18px;
-      margin-bottom: 24px;
-      font-size: 13px;
-      color: var(--text-2);
-    }
-    .guide-title {
-      font-weight: 600;
-      color: var(--text-1);
-      margin-bottom: 12px;
+    .secure-badge {
       display: flex;
       align-items: center;
-      gap: 8px;
-    }
-    .guide-steps {
-      margin-left: 18px;
-      line-height: 1.6;
-    }
-    .guide-steps li { margin-bottom: 8px; }
-    .guide-steps li:last-child { margin-bottom: 0; }
-    .guide-steps a { color: var(--primary-lt); text-decoration: none; font-weight: 500; }
-    .guide-steps a:hover { text-decoration: underline; }
-    .guide-steps code {
-      background: rgba(255,255,255,0.05);
-      padding: 3px 8px;
-      border-radius: 6px;
-      font-family: monospace;
-      font-size: 12px;
-      color: var(--primary-lt);
-    }
-    
-    .help-text {
-      font-size: 13px;
-      color: var(--text-3);
-      margin-top: 20px;
-      text-align: center;
-      line-height: 1.5;
-    }
-
-    .bottom-link {
-      display: block;
-      text-align: center;
+      justify-content: center;
+      gap: 6px;
       margin-top: 24px;
-      font-size: 14px;
+      font-size: 12px;
       color: var(--text-3);
-      text-decoration: none;
-      transition: color 0.2s;
     }
-    .bottom-link:hover { color: white; }
 
-    /* Loader */
-    .loader-wrap {
+    /* Loading Overlay */
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      z-index: 50;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 40px 0;
-      color: var(--text-2);
+      transition: opacity 0.3s;
     }
     .spinner {
-      width: 40px;
-      height: 40px;
+      width: 40px; height: 40px;
       border: 3px solid rgba(255,255,255,0.1);
       border-top-color: var(--primary);
       border-radius: 50%;
@@ -285,121 +287,155 @@
     }
     @keyframes spin { 100% { transform: rotate(360deg); } }
 
-    #admin-setup, #user-login, #loading { display: none; }
-    
-    /* Small admin toggle */
-    .admin-toggle {
-      position: absolute;
-      bottom: 24px;
-      left: 0; right: 0;
-      text-align: center;
-      font-size: 12px;
-      color: var(--text-3);
-      text-decoration: none;
-      opacity: 0;
-      transition: opacity 0.3s;
+    @media (max-width: 900px) {
+      .split-container { flex-direction: column; }
+      .left-panel { padding: 40px 20px; border-right: none; border-bottom: 1px solid var(--border); }
+      .right-panel { padding: 40px 20px; }
+      .logo { position: static; margin-bottom: 30px; }
     }
-    .card:hover .admin-toggle { opacity: 1; }
   </style>
+
+  <!-- Load Clerk SDK -->
+  <script
+    async crossorigin="anonymous"
+    data-clerk-publishable-key="pk_test_aW50ZW50LWJ1Y2stNTYuY2xlcmsuYWNjb3VudHMuZGV2JA"
+    src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
+  ></script>
 </head>
 <body>
 
-<div class="bg-glow"></div>
+<!-- Initial Loading State while checking Auth -->
+<div class="loading-overlay" id="initial-loading">
+  <div class="spinner"></div>
+  <div style="color: var(--text-2); font-size: 14px;">Verifying session...</div>
+</div>
 
-<nav class="nav">
-  <a href="/" class="logo">Algo Colleague</a>
-  <a href="/" class="nav-link">Return Home</a>
-</nav>
-
-<div class="container">
-  <div class="card">
-    
-    <!-- Header shared by all states -->
-    <div class="card-header">
-      <div class="icon-box">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<div class="split-container">
+  
+  <!-- Left Panel: Instructions -->
+  <div class="left-panel">
+    <a href="/" class="logo">
+      <div class="logo-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path>
           <rect x="2" y="9" width="4" height="12"></rect>
           <circle cx="4" cy="4" r="2"></circle>
         </svg>
       </div>
-      <h1>Connect Workspace</h1>
-      <p class="subtitle" id="subtext">Securely authenticate your account.</p>
-    </div>
+      Algo Colleague
+    </a>
 
-    <!-- Loading State -->
-    <div id="loading" class="loader-wrap">
-      <div class="spinner"></div>
-      <div id="loading-msg">Initializing connection...</div>
-    </div>
+    <h1>Connect your LinkedIn</h1>
+    <p class="guide-intro">
+      To ensure your account's safety and avoid LinkedIn rate limits, you'll need to create a free personal developer app. It takes exactly 2 minutes.
+    </p>
 
-    <!-- Admin Setup State -->
-    <div id="admin-setup">
-      <div class="admin-notice">
-        <b>Workspace Configuration</b><br>
-        To enable seamless authentication for your users, please configure your integration credentials below. End-users bypass this step.
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <h3>Create a Developer App</h3>
+          <p>Go to the <a href="https://www.linkedin.com/developers/apps" target="_blank" rel="noopener noreferrer">LinkedIn Developer Portal</a> and click <b>Create app</b>.</p>
+        </div>
       </div>
       
-      <div class="setup-guide">
-        <div class="guide-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary-lt)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-          Quick Setup Guide
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <h3>Request Permissions</h3>
+          <p>Under the <b>Products</b> tab, request access to <b>Sign In with LinkedIn using OpenID Connect</b> and <b>Share on LinkedIn</b>.</p>
         </div>
-        <ol class="guide-steps">
-          <li>Go to the <a href="https://www.linkedin.com/developers/apps" target="_blank" rel="noopener noreferrer">LinkedIn Developer Portal ↗</a> and click <b>Create app</b>.</li>
-          <li>Under the <b>Auth</b> tab, copy your <b>Client ID</b> and <b>Client Secret</b> below.</li>
-          <li>Under <b>OAuth 2.0 settings</b>, add the exact URL below to your Authorized redirect URLs:<br>
-            <code id="dynamic-redirect-url" style="display:inline-block;margin-top:6px;"></code>
-          </li>
-          <li>Under the <b>Products</b> tab, request access to <b>Sign In with LinkedIn using OpenID Connect</b> and <b>Share on LinkedIn</b>.</li>
-        </ol>
       </div>
 
-      <form onsubmit="saveCredentials(event)">
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <h3>Add Redirect URL</h3>
+          <p>Under the <b>Auth</b> tab, add this exact URL to your <b>Authorized redirect URLs</b>:</p>
+          <div class="code-block" id="redirect-url-display">https://algo-colleague.vercel.app/connect</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">4</div>
+        <div class="step-content">
+          <h3>Copy your Keys</h3>
+          <p>Under the <b>Auth</b> tab, copy your <b>Client ID</b> and <b>Client Secret</b> into the form on the right.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Panel: Form -->
+  <div class="right-panel">
+    <div class="form-card">
+      <div class="form-header">
+        <h2>App Credentials</h2>
+        <p>Enter the keys from your new LinkedIn app.</p>
+      </div>
+
+      <form id="connect-form">
         <div class="form-group">
           <label>Client ID</label>
-          <input type="text" id="client_id" required placeholder="Enter your Client ID">
+          <input type="text" id="client_id" required placeholder="e.g. 86xxxxxxxxxxxxxxxx" autocomplete="off">
         </div>
+        
         <div class="form-group">
           <label>Client Secret</label>
-          <input type="password" id="client_secret" required placeholder="Enter your Client Secret">
+          <input type="password" id="client_secret" required placeholder="••••••••••••••••" autocomplete="new-password">
         </div>
-        <button type="submit" class="btn btn-primary">Save Configuration</button>
+
+        <button type="submit" class="btn btn-primary" id="submit-btn">
+          Save & Connect LinkedIn
+        </button>
       </form>
-    </div>
 
-    <!-- User Login State -->
-    <div id="user-login">
-      <button class="btn btn-linkedin" onclick="loginWithLinkedIn()">
-        <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-        Sign in with LinkedIn
-      </button>
-      <a class="bottom-link" href="/app">Already connected? Go to Dashboard →</a>
-      
-      <a href="#" onclick="showSetup()" class="admin-toggle">⚙️ Edit Workspace Config</a>
+      <div class="secure-badge">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        Your keys are securely encrypted per-tenant
+      </div>
     </div>
-
   </div>
+
 </div>
 
 <script>
-  const params = new URLSearchParams(window.location.search);
-  const code = params.get('code');
-  const error = params.get('error');
+  // Set dynamic redirect URL
+  document.getElementById('redirect-url-display').innerText = window.location.origin + '/connect';
 
-  document.addEventListener('DOMContentLoaded', () => {
-    const el = document.getElementById('dynamic-redirect-url');
-    if (el) el.innerText = window.location.origin + '/connect';
-  });
+  window.addEventListener('load', async function () {
+    const loadingEl = document.getElementById('initial-loading');
+    
+    // Ensure Clerk is loaded
+    if (!window.Clerk) {
+      alert("Error: Authentication module failed to load.");
+      return;
+    }
 
-  async function init() {
-    if (code) {
-      showLoading('Authenticating with identity provider...');
-      try {
+    try {
+      await window.Clerk.load();
+      if (!window.Clerk.user) {
+        window.location.href = '/?redirect=false';
+        return;
+      }
+      
+      const token = await window.Clerk.session.getToken();
+      
+      // Handle the OAuth callback if the URL has ?code=...
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      const error = params.get('error');
+
+      if (code) {
+        loadingEl.querySelector('div:last-child').innerText = 'Finalizing connection...';
+        const redirectUri = window.location.origin + '/connect';
         const res = await fetch('/api/auth/callback', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code, redirectUri: window.location.origin + '/connect' })
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ code, redirectUri })
         });
         const data = await res.json();
         if (data.success) {
@@ -408,109 +444,84 @@
           alert('Authentication failed: ' + (data.error || 'Unknown error'));
           window.location.href = '/connect';
         }
-      } catch (err) {
-        alert('Connection error. Please try again.');
-        window.location.href = '/connect';
+        return;
       }
-      return;
-    }
 
-    if (error) {
-      alert('Authentication was cancelled or failed.');
-    }
+      if (error) {
+        alert('Authentication was cancelled or failed.');
+        window.history.replaceState({}, '', '/connect');
+      }
 
-    try {
-      showLoading('Verifying workspace configuration...');
-      
-      // Auto-redirect if already logged in
-      const authStatusRes = await fetch('/api/auth/status');
+      // Check if already authenticated and connected
+      const authStatusRes = await fetch('/api/auth/status', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       const authStatus = await authStatusRes.json();
+      
       if (authStatus.authenticated) {
         window.location.href = '/app';
         return;
       }
 
-      const res = await fetch('/api/auth/credentials');
-      const data = await res.json();
-      
-      if (data.configured) {
-        showLogin();
-      } else {
-        showSetup();
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Error communicating with the platform.');
-    }
-  }
+      // Fade out loader
+      loadingEl.style.opacity = '0';
+      setTimeout(() => loadingEl.style.display = 'none', 300);
 
-  function showLoading(msg) {
-    document.getElementById('loading').style.display = 'flex';
-    if(msg) document.getElementById('loading-msg').innerText = msg;
-    document.getElementById('admin-setup').style.display = 'none';
-    document.getElementById('user-login').style.display = 'none';
-  }
+      // Handle Form Submit
+      const form = document.getElementById('connect-form');
+      const btn = document.getElementById('submit-btn');
 
-  function showSetup() {
-    document.getElementById('loading').style.display = 'none';
-    document.getElementById('admin-setup').style.display = 'block';
-    document.getElementById('user-login').style.display = 'none';
-    document.getElementById('subtext').innerText = 'System integration configuration required.';
-  }
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        btn.innerHTML = '<span style="animation:spin 1s linear infinite;display:inline-block;margin-right:6px">⏳</span> Connecting...';
+        btn.disabled = true;
 
-  function showLogin() {
-    document.getElementById('loading').style.display = 'none';
-    document.getElementById('admin-setup').style.display = 'none';
-    document.getElementById('user-login').style.display = 'block';
-    document.getElementById('subtext').innerText = 'Securely authenticate to enable workspace features.';
-  }
+        const clientId = document.getElementById('client_id').value.trim();
+        const clientSecret = document.getElementById('client_secret').value.trim();
 
-  async function saveCredentials(e) {
-    e.preventDefault();
-    const btn = e.target.querySelector('button');
-    btn.innerText = 'Applying Configuration...';
-    btn.disabled = true;
+        try {
+          // 1. Save Credentials
+          const saveRes = await fetch('/api/auth/credentials', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ clientId, clientSecret })
+          });
+          const saveData = await saveRes.json();
 
-    const clientId = document.getElementById('client_id').value;
-    const clientSecret = document.getElementById('client_secret').value;
+          if (!saveData.success) {
+            throw new Error(saveData.error || 'Failed to save credentials');
+          }
 
-    try {
-      const res = await fetch('/api/auth/credentials', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, clientSecret })
+          // 2. Fetch OAuth URL
+          const redirectUri = window.location.origin + '/connect';
+          const urlRes = await fetch('/api/auth/url?redirectUri=' + encodeURIComponent(redirectUri), {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          const urlData = await urlRes.json();
+
+          if (urlData.url) {
+            // 3. Redirect to LinkedIn
+            window.location.href = urlData.url;
+          } else {
+            throw new Error('Failed to generate authentication URL');
+          }
+
+        } catch (err) {
+          alert('Error: ' + err.message);
+          btn.innerHTML = 'Save & Connect LinkedIn';
+          btn.disabled = false;
+        }
       });
-      const data = await res.json();
-      
-      if (data.success) {
-        showLogin();
-      } else {
-        alert(data.error || 'Failed to apply configuration.');
-      }
-    } catch (err) {
-      alert('Network error while saving configuration.');
-    }
-    
-    btn.innerText = 'Save Configuration';
-    btn.disabled = false;
-  }
 
-  async function loginWithLinkedIn() {
-    try {
-      const redirectUri = window.location.origin + '/connect';
-      const res = await fetch('/api/auth/url?redirectUri=' + encodeURIComponent(redirectUri));
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        alert('Authentication URL generation failed. Ensure workspace is configured.');
-      }
-    } catch (err) {
-      alert('Failed to reach authentication service.');
+    } catch (e) {
+      console.error("Clerk init failed", e);
+      loadingEl.querySelector('div:last-child').innerText = 'Failed to load session.';
     }
-  }
-
-  init();
+  });
 </script>
+
 </body>
 </html>

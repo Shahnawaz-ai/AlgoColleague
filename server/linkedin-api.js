@@ -16,8 +16,10 @@ class LinkedInAPI {
     this.lastCallTime = Date.now();
   }
 
-  async getAuthorizationUrl(redirectUri) {
-    const clientId = await getSetting('linkedin_client_id');
+  async getAuthorizationUrl(redirectUri, userId) {
+    const { getUserSetting } = require('./db');
+    const clientId = await getUserSetting(userId, 'linkedin_client_id');
+    if (!clientId) throw new Error('LinkedIn Client ID not configured for this user.');
     const encRedirectUri = encodeURIComponent(redirectUri);
     const scopes = encodeURIComponent('openid profile email w_member_social');
     const state = Math.random().toString(36).substring(7);
@@ -25,8 +27,9 @@ class LinkedInAPI {
   }
 
   async exchangeCodeForToken(code, redirectUri, userId) {
-    const clientId = await getSetting('linkedin_client_id');
-    const clientSecret = await getSetting('linkedin_client_secret');
+    const { getUserSetting, setUserSetting } = require('./db');
+    const clientId = await getUserSetting(userId, 'linkedin_client_id');
+    const clientSecret = await getUserSetting(userId, 'linkedin_client_secret');
 
     const params = new URLSearchParams();
     params.append('grant_type', 'authorization_code');
