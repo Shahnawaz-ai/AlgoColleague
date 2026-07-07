@@ -60,6 +60,14 @@ app.use('/api/comments', require('./routes/comments'));
 // Vercel Cron Endpoint
 app.use('/api/cron', require('./routes/cron'));
 
+// Mock scheduler endpoint since we use cron
+app.get('/api/scheduler/status', (req, res) => {
+  res.json({
+    isRunning: true,
+    nextCheck: 'Triggered via Vercel Cron',
+  });
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({
@@ -77,10 +85,11 @@ app.get('/connect', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'connect.html'));
 });
 
-app.get('*', (req, res) => {
-  if (!req.path.startsWith('/api')) {
-    res.sendFile(path.join(__dirname, '..', 'public', 'app.html'));
+app.all('*', (req, res) => {
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: 'Not found' });
   }
+  res.sendFile(path.join(__dirname, '..', 'public', 'app.html'));
 });
 
 app.use((err, req, res, next) => {
