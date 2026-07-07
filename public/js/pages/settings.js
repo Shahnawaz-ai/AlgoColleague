@@ -20,12 +20,11 @@ const SettingsPage = {
     const isConnected = App.isAuthenticated;
     const profile = App.authStatus?.profile;
 
-    // Check if credentials configured
     let credentialsConfigured = false;
     try {
-      const configured = await App.api('/api/auth/configured');
+      const configured = await App.api('/api/auth/credentials');
       credentialsConfigured = configured.configured;
-    } catch (e) { /* ignore */ }
+    } catch (e) { console.error('Error fetching credentials:', e); }
 
     container.innerHTML = `
       <div class="page-header">
@@ -176,7 +175,7 @@ const SettingsPage = {
   async connectLinkedIn() {
     try {
       // Check if credentials are configured first
-      const configured = await App.api('/api/auth/configured');
+      const configured = await App.api('/api/auth/credentials');
       if (!configured.configured) {
         // Route to onboarding to enter credentials
         App.navigate('onboarding');
