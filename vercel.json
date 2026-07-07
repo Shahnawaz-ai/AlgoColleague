@@ -4,6 +4,10 @@
     {
       "src": "server/index.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "public/**/*",
+      "use": "@vercel/static"
     }
   ],
   "rewrites": [
@@ -12,20 +16,32 @@
       "destination": "/server/index.js"
     },
     {
+      "source": "/css/(.*)",
+      "destination": "/public/css/$1"
+    },
+    {
+      "source": "/js/(.*)",
+      "destination": "/public/js/$1"
+    },
+    {
       "source": "/",
-      "destination": "/landing.html"
+      "destination": "/public/landing.html"
     },
     {
       "source": "/connect",
-      "destination": "/connect.html"
+      "destination": "/public/connect.html"
     },
     {
       "source": "/app",
-      "destination": "/app.html"
+      "destination": "/public/app.html"
     },
     {
       "source": "/app/(.*)",
-      "destination": "/app.html"
+      "destination": "/public/app.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/public/$1"
     }
   ]
 }
