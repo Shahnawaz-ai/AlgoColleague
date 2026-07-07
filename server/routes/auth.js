@@ -5,8 +5,8 @@ const { getSetting, setSetting, logActivity } = require('../db');
 
 // Check if credentials exist
 router.get('/credentials', async (req, res) => {
-  const clientId = getSetting('linkedin_client_id');
-  const clientSecret = getSetting('linkedin_client_secret');
+  const clientId = await getSetting('linkedin_client_id');
+  const clientSecret = await getSetting('linkedin_client_secret');
   res.json({
     configured: !!(clientId && clientSecret)
   });
@@ -18,9 +18,9 @@ router.post('/credentials', async (req, res) => {
   if (!clientId || !clientSecret) {
     return res.status(400).json({ error: 'Client ID and Secret are required' });
   }
-  setSetting('linkedin_client_id', clientId.trim());
-  setSetting('linkedin_client_secret', clientSecret.trim());
-  logActivity('config_updated', 'system', null, 'LinkedIn API credentials updated');
+  await setSetting('linkedin_client_id', clientId.trim());
+  await setSetting('linkedin_client_secret', clientSecret.trim());
+  await logActivity('config_updated', 'system', null, 'LinkedIn API credentials updated');
   res.json({ success: true });
 });
 
@@ -29,7 +29,7 @@ router.get('/url', async (req, res) => {
   try {
     const redirectUri = req.query.redirectUri;
     if (!redirectUri) return res.status(400).json({ error: 'redirectUri is required' });
-    const url = linkedInAPI.getAuthorizationUrl(redirectUri);
+    const url = await linkedInAPI.getAuthorizationUrl(redirectUri);
     res.json({ url });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -53,23 +53,24 @@ router.post('/callback', async (req, res) => {
 
 // Check authentication status
 router.get('/status', async (req, res) => {
-  const isAuthenticated = linkedInAPI.isTokenValid();
-  const profile = isAuthenticated ? linkedInAPI.getProfile() : null;
+  const isAuthenticated = await linkedInAPI.isTokenValid();
+  const profile = isAuthenticated ? await linkedInAPI.getProfile() : null;
+  const expiry = await getSetting('linkedin_token_expiry');
   res.json({
     authenticated: isAuthenticated,
     profile,
-    tokenExpiry: getSetting('linkedin_token_expiry') || '0',
+    tokenExpiry: expiry || '0',
   });
 });
 
 // Disconnect
 router.post('/logout', async (req, res) => {
-  setSetting('linkedin_token', '');
-  setSetting('linkedin_token_expiry', '0');
-  setSetting('user_id', '');
-  setSetting('user_name', '');
-  setSetting('user_picture', '');
-  logActivity('auth_logout', 'user', null, 'User disconnected LinkedIn account');
+  await setSetting('linkedin_token', '');
+  await setSetting('linkedin_token_expiry', '0');
+  await setSetting('user_id', '');
+  await setSetting('user_name', '');
+  await setSetting('user_picture', '');
+  await logActivity('auth_logout', 'user', null, 'User disconnected LinkedIn account');
   res.json({ success: true });
 });
 

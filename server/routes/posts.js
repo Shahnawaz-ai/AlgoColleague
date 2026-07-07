@@ -8,8 +8,12 @@ const { dbGet, dbAll, dbRun, logActivity } = require('../db');
 const linkedInAPI = require('../linkedin-api');
 
 // Configure multer for image uploads
-const uploadDir = path.join(__dirname, '..', '..', 'data', 'uploads');
-fs.mkdirSync(uploadDir, { recursive: true });
+const uploadDir = process.env.VERCEL ? '/tmp/uploads' : path.join(__dirname, '..', '..', 'data', 'uploads');
+try {
+  fs.mkdirSync(uploadDir, { recursive: true });
+} catch (e) {
+  console.warn('Could not create upload dir:', e.message);
+}
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
@@ -198,21 +202,21 @@ router.post('/:id/publish-now', async (req, res) => {
       result = await linkedInAPI.createTextPost(post.content);
     }
 
-    prepare(`UPDATE posts SET status = 'published', linkedin_post_id = ?, published_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
-      .run(result.linkedinPostId || '', post.id);
+    await dbRun(`UPDATE posts SET status = 'published', linkedin_post_id = ?, published_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      result.linkedinPostId || '', post.id);
 
     logActivity('post_published', 'post', post.id, 'Published immediately');
     res.json({ success: true, linkedinPostId: result.linkedinPostId });
   } catch (error) {
-    prepare("UPDATE posts SET status = 'failed', error_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-      .run(error.message, post.id);
+    await dbRun("UPDATE posts SET status = 'failed', error_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      error.message, post.id);
     res.status(500).json({ error: error.message });
   }
 });
 
 // Upload image for a post
-router.post('/:id/upload-image', upload.single('image'), (req, res) => {
-  const post = prepare('SELECT * FROM posts WHERE id = ?', req.params.id);
+router.post('/:id/upload-image', upload.single('image'), async (req, res) => {
+  const post = await dbGet('SELECT * FROM posts WHERE id = ?', req.params.id);
   if (!post) return res.status(404).json({ error: 'Post not found' });
 
   if (!req.file) {
@@ -222,8 +226,8 @@ router.post('/:id/upload-image', upload.single('image'), (req, res) => {
   const mediaUrls = JSON.parse(post.media_urls || '[]');
   mediaUrls.push(req.file.path);
 
-  prepare("UPDATE posts SET media_urls = ?, post_type = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-    .run(JSON.stringify(mediaUrls), mediaUrls.length > 1 ? 'multi_image' : 'image', post.id);
+  await dbRun("UPDATE posts SET media_urls = ?, post_type = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+    JSON.stringify(mediaUrls), mediaUrls.length > 1 ? 'multi_image' : 'image', post.id);
 
   logActivity('image_uploaded', 'post', post.id, `Image uploaded: ${req.file.filename}`);
 

@@ -16,8 +16,8 @@ class LinkedInAPI {
     this.lastCallTime = Date.now();
   }
 
-  getAuthorizationUrl(redirectUri) {
-    const clientId = getSetting('linkedin_client_id');
+  async getAuthorizationUrl(redirectUri) {
+    const clientId = await getSetting('linkedin_client_id');
     const encRedirectUri = encodeURIComponent(redirectUri);
     const scopes = encodeURIComponent('openid profile email w_member_social');
     const state = Math.random().toString(36).substring(7);
@@ -25,8 +25,8 @@ class LinkedInAPI {
   }
 
   async exchangeCodeForToken(code, redirectUri) {
-    const clientId = getSetting('linkedin_client_id');
-    const clientSecret = getSetting('linkedin_client_secret');
+    const clientId = await getSetting('linkedin_client_id');
+    const clientSecret = await getSetting('linkedin_client_secret');
 
     const params = new URLSearchParams();
     params.append('grant_type', 'authorization_code');
@@ -44,10 +44,10 @@ class LinkedInAPI {
       const expiresIn = response.data.expires_in; // Usually 60 days
       const expiry = Date.now() + (expiresIn * 1000);
 
-      setSetting('linkedin_token', token);
-      setSetting('linkedin_token_expiry', expiry.toString());
+      await setSetting('linkedin_token', token);
+      await setSetting('linkedin_token_expiry', expiry.toString());
       
-      logActivity('auth_login', 'user', null, 'Successfully authenticated via LinkedIn OAuth');
+      await logActivity('auth_login', 'user', null, 'Successfully authenticated via LinkedIn OAuth');
       return true;
     } catch (error) {
       console.error('Token exchange failed:', error.response?.data || error.message);
@@ -55,24 +55,25 @@ class LinkedInAPI {
     }
   }
 
-  isTokenValid() {
-    const token = getSetting('linkedin_token');
-    const expiry = parseInt(getSetting('linkedin_token_expiry') || '0');
+  async isTokenValid() {
+    const token = await getSetting('linkedin_token');
+    const expiryStr = await getSetting('linkedin_token_expiry');
+    const expiry = parseInt(expiryStr || '0');
     return !!token && expiry > Date.now();
   }
 
-  getProfile() {
+  async getProfile() {
     return {
-      id: getSetting('user_id'),
-      name: getSetting('user_name'),
-      email: getSetting('user_email'),
-      picture: getSetting('user_picture'),
+      id: await getSetting('user_id'),
+      name: await getSetting('user_name'),
+      email: await getSetting('user_email'),
+      picture: await getSetting('user_picture'),
     };
   }
 
   async fetchAndStoreProfile() {
     await this.throttle();
-    const token = getSetting('linkedin_token');
+    const token = await getSetting('linkedin_token');
     if (!token) return null;
 
     try {
@@ -81,12 +82,12 @@ class LinkedInAPI {
       });
       
       const profile = response.data;
-      setSetting('user_id', profile.sub);
-      setSetting('user_name', profile.name);
-      setSetting('user_email', profile.email);
-      setSetting('user_picture', profile.picture || '');
+      await setSetting('user_id', profile.sub);
+      await setSetting('user_name', profile.name);
+      await setSetting('user_email', profile.email);
+      await setSetting('user_picture', profile.picture || '');
 
-      return this.getProfile();
+      return await this.getProfile();
     } catch (error) {
       console.error('Profile fetch failed:', error.response?.data || error.message);
       return null;
@@ -95,8 +96,8 @@ class LinkedInAPI {
 
   async createTextPost(content) {
     await this.throttle();
-    const token = getSetting('linkedin_token');
-    const userId = getSetting('user_id');
+    const token = await getSetting('linkedin_token');
+    const userId = await getSetting('user_id');
     if (!token || !userId) throw new Error('Not authenticated');
 
     try {
@@ -127,7 +128,7 @@ class LinkedInAPI {
       );
 
       const postId = response.headers['x-restli-id'] || 'oauth_post_' + Date.now();
-      logActivity('post_published', 'post', postId, `Text post published via OAuth`);
+      await logActivity('post_published', 'post', postId, `Text post published via OAuth`);
       return { success: true, linkedinPostId: postId };
     } catch (error) {
       console.error('Post creation failed:', error.response?.data || error.message);
