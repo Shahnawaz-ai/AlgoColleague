@@ -23,14 +23,25 @@ const App = {
     // Check auth status
     await this.checkAuth();
 
-    // If not authenticated, redirect to /connect
+    // If not authenticated, redirect to /setup for onboarding
     if (!this.authStatus?.authenticated) {
-      window.location.href = '/connect';
+      window.location.href = '/setup';
       return;
     }
 
     // Navigate to initial page
     this.navigate('dashboard');
+
+    // Hide global loading overlay
+    const overlay = document.getElementById('loading-overlay');
+    const appLayout = document.getElementById('app');
+    if (overlay) {
+      overlay.style.opacity = '0';
+      setTimeout(() => {
+        overlay.style.display = 'none';
+        if (appLayout) appLayout.style.display = 'flex';
+      }, 400);
+    }
 
     // Refresh auth status periodically
     setInterval(() => this.checkAuth(), 60000);

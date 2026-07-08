@@ -102,10 +102,12 @@ router.get('/login', async (req, res) => {
     if (!clientId || !clientSecret) {
       return res.status(400).json({ error: 'LinkedIn credentials not configured. Please set up your credentials first.' });
     }
-    const redirectUri = `${req.protocol}://${req.get('host')}/connect`;
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const redirectUri = `${protocol}://${req.get('host')}/connect`;
     const url = await linkedInAPI.getAuthorizationUrl(redirectUri, userId);
     res.json({ authUrl: url });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ error: error.message });
   }
 });
