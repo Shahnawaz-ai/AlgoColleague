@@ -79,7 +79,7 @@ router.post('/roadmap', async (req, res) => {
         userId,
         content,
         'text',
-        'draft',
+        'queued',
         scheduledDate.toISOString(),
         tags
       );
