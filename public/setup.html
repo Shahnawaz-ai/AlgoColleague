@@ -62,6 +62,10 @@
       const token = await window.Clerk.session.getToken();
       options.headers['Authorization'] = `Bearer ${token}`;
     }
+    if (options.body && typeof options.body === 'object') {
+      options.body = JSON.stringify(options.body);
+      options.headers['Content-Type'] = 'application/json';
+    }
     const res = await fetch(url, options);
     if (!res.ok) {
       let err;
