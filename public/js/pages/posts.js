@@ -158,7 +158,7 @@ const PostsPage = {
   },
 
   async bulkDelete() {
-    if (!await App.confirm(\`Delete \${this.selectedPosts.size} selected posts permanently?\`)) return;
+    if (!await App.confirm(`Delete ${this.selectedPosts.size} selected posts permanently?`)) return;
     
     const btn = document.getElementById('btn-bulk-delete');
     if (btn) btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;border-width:2px"></span> Deleting...';
@@ -168,9 +168,9 @@ const PostsPage = {
     
     for (const id of this.selectedPosts) {
       try {
-        await App.api(\`/api/posts/\${id}\`, { method: 'DELETE' });
+        await App.api(`/api/posts/${id}`, { method: 'DELETE' });
         deletedCount++;
-        const row = document.getElementById(\`post-row-\${id}\`);
+        const row = document.getElementById(`post-row-${id}`);
         if (row) {
           row.style.opacity = '0';
           row.style.transform = 'translateX(30px)';
@@ -181,9 +181,9 @@ const PostsPage = {
     }
     
     if (errors.length > 0) {
-      App.toast(\`Deleted \${deletedCount}. Failed \${errors.length}: \${errors[0]}\`, 'error');
+      App.toast(`Deleted ${deletedCount}. Failed ${errors.length}: ${errors[0]}`, 'error');
     } else {
-      App.toast(\`Successfully deleted \${deletedCount} posts\`, 'success');
+      App.toast(`Successfully deleted ${deletedCount} posts`, 'success');
     }
     
     this.selectedPosts.clear();
