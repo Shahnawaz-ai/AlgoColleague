@@ -123,20 +123,8 @@ router.post('/', async (req, res) => {
     const id = uuidv4();
     const finalStatus = scheduled_at ? 'queued' : status;
 
-    // --- FREE PLAN LIMITS ---
-    const { getUserSetting } = require('../db');
-    const plan = (await getUserSetting(userId, 'subscription_plan')) || 'starter';
-    if (plan === 'starter') {
-      const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
-      const countResult = await dbGet('SELECT COUNT(*) as count FROM posts WHERE user_id = ? AND created_at LIKE ? AND status != ?', userId, `${currentMonth}%`, 'failed');
-      const count = countResult ? countResult.count : 0;
-      if (count >= 6) {
-        return res.status(403).json({ 
-          error: 'You have reached your free limit of 6 posts this month. To schedule more posts, please upgrade to the Pro plan.' 
-        });
-      }
-    }
-    // -------------------------
+    // --- FREE PLAN LIMITS REMOVED ---
+    // (Limits removed as per request)
 
     await dbRun(`
       INSERT INTO posts (id, content, post_type, scheduled_at, status, tags, template_id, created_at, updated_at, user_id)
