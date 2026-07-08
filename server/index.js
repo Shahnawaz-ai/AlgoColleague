@@ -5,7 +5,7 @@ const path       = require('path');
 const helmet     = require('helmet');
 const compression = require('compression');
 const rateLimit  = require('express-rate-limit');
-const { initialize, dbGet, dbRun } = require('./db');
+const { initialize } = require('./db');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -84,21 +84,16 @@ app.get('/api/scheduler/status', (req, res) => {
   });
 });
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-  });
-});
-
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'landing.html'));
 });
 
 app.get('/connect', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'connect.html'));
+});
+
+app.get('/setup', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'setup.html'));
 });
 
 app.all('*', (req, res) => {
@@ -122,26 +117,8 @@ async function start() {
   try {
     await initialize();
 
-    // Seed default templates
-    const templateCountRow = await dbGet('SELECT COUNT(*) as count FROM templates');
-    if (templateCountRow && templateCountRow.count === 0) {
-      console.log('📝 Seeding default templates...');
-      const { v4: uuidv4 } = require('uuid');
-      const defaults = [
-        { name: 'Engagement Hook', category: 'engagement', content: '🔥 Hot take:\n\n[Your controversial opinion here]\n\nAgree or disagree? Drop your thoughts below 👇\n\n#LinkedIn #Engagement' },
-        { name: 'Value Thread', category: 'thought_leadership', content: '📌 [X] things I learned about [topic] after [Y] years:\n\n1️⃣ \n2️⃣ \n3️⃣ \n4️⃣ \n5️⃣ \n\nWhich one resonates most?\n\n#Leadership #Growth' },
-        { name: 'Story Post', category: 'storytelling', content: 'Last week, something changed how I think about [topic].\n\nHere\'s what happened:\n\n[Tell your story]\n\nThe lesson?\n\n[Key takeaway]\n\n♻️ Repost if this resonates' },
-        { name: 'Product Launch', category: 'announcement', content: '🎉 Exciting news!\n\nWe\'re thrilled to announce [announcement].\n\n✅ [Benefit 1]\n✅ [Benefit 2]\n✅ [Benefit 3]\n\n#Announcement #Innovation' },
-        { name: 'Quick Tip', category: 'tips', content: '💡 Quick tip for [audience]:\n\n[Your actionable tip]\n\nWhy this matters:\n→ [Reason]\n\nTry it today!\n\n#Tips #Productivity' },
-        { name: 'Poll Starter', category: 'engagement', content: 'I\'m curious — what\'s your take on [topic]?\n\nA: [Option]\nB: [Option]\nC: [Option]\n\nVote in the comments! 🗳️' },
-      ];
-
-      for (const t of defaults) {
-        await dbRun('INSERT INTO templates (id, name, category, content, tags, created_at, updated_at) VALUES (?, ?, ?, ?, \'[]\', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
-          uuidv4(), t.name, t.category, t.content);
-      }
-      console.log(`✅ Seeded ${defaults.length} default templates`);
-    }
+    // Note: Default templates are seeded per-user via POST /api/templates/seed
+    // called from the onboarding flow after the user connects LinkedIn.
 
     // Only start listen server if not running on Vercel
     if (!process.env.VERCEL) {

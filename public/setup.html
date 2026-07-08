@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Setup — Algo Colleague</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <script async crossorigin="anonymous"
+    data-clerk-publishable-key="pk_test_aW50ZW50LWJ1Y2stNTYuY2xlcmsuYWNjb3VudHMuZGV2JA"
+    src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js"></script>
+  <style>
+    :root{--bg:#03060d;--bg2:#080d1a;--surface:rgba(255,255,255,.04);--border:rgba(255,255,255,.08);--primary:#6366f1;--violet:#8b5cf6;--emerald:#10b981;--amber:#f59e0b;--text-1:#f8fafc;--text-2:#94a3b8;--text-3:#64748b;--grad:linear-gradient(135deg,#6366f1,#8b5cf6)}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-1);min-height:100vh;-webkit-font-smoothing:antialiased}
+    #loading-overlay{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1000;transition:opacity .4s}
+    .spinner{width:44px;height:44px;border:3px solid rgba(255,255,255,.1);border-top-color:var(--primary);border-radius:50%;animation:spin 1s linear infinite;margin-bottom:16px}
+    @keyframes spin{100%{transform:rotate(360deg)}}
+    .loading-text{color:var(--text-2);font-size:14px}
+    .page{display:flex;min-height:100vh}
+    .sidebar{width:280px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);padding:40px 32px;display:flex;flex-direction:column}
+    .sidebar-logo{display:flex;align-items:center;gap:10px;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;color:var(--text-1);margin-bottom:48px;text-decoration:none}
+    .sidebar-logo svg{width:32px;height:32px}
+    .steps-nav{display:flex;flex-direction:column;gap:4px;flex:1}
+    .step-nav-item{display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:10px;cursor:default}
+    .step-nav-item.active{background:rgba(99,102,241,.12)}
+    .step-nav-num{width:28px;height:28px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--text-3);flex-shrink:0;transition:all .3s}
+    .step-nav-item.active .step-nav-num{border-color:var(--primary);background:var(--primary);color:#fff}
+    .step-nav-item.done .step-nav-num{border-color:var(--emerald);background:var(--emerald);color:#fff}
+    .step-nav-label{font-size:13px;font-weight:500;color:var(--text-3)}
+    .step-nav-item.active .step-nav-label{color:var(--text-1)}
+    .step-nav-item.done .step-nav-label{color:var(--emerald)}
+    .step-connector{width:2px;height:20px;background:var(--border);margin-left:27px;border-radius:1px}
+    .sidebar-bottom{margin-top:auto;padding-top:24px;border-top:1px solid var(--border)}
+    .signed-in-badge{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;background:var(--surface)}
+    .user-avatar{width:32px;height:32px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0}
+    .user-info{flex:1;min-width:0}
+    .user-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .user-email{font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .main{flex:1;display:flex;align-items:flex-start;justify-content:center;padding:60px 40px;overflow-y:auto}
+    .card{width:100%;max-width:640px;background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:48px}
+    .step-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.25);font-size:11px;font-weight:700;color:#818cf8;letter-spacing:.08em;text-transform:uppercase;margin-bottom:20px}
+    h2{font-family:'Space Grotesk',sans-serif;font-size:1.9rem;font-weight:700;line-height:1.2;margin-bottom:12px}
+    .subtitle{color:var(--text-2);font-size:15px;line-height:1.6;margin-bottom:32px}
+    .info-box{display:flex;gap:12px;align-items:flex-start;padding:16px;border-radius:12px;background:rgba(99,102,241,.07);border:1px solid rgba(99,102,241,.2);margin-bottom:28px}
+    .info-box.success{background:rgba(16,185,129,.07);border-color:rgba(16,185,129,.2)}
+    .info-box.warning{background:rgba(245,158,11,.07);border-color:rgba(245,158,11,.2)}
+    .info-box-icon{font-size:1.2rem;flex-shrink:0;margin-top:1px}
+    .info-box p{font-size:13px;color:var(--text-2);line-height:1.6}
+    .info-box strong{color:var(--text-1)}
+    .feature-item{display:flex;align-items:center;gap:14px;padding:16px;border-radius:10px;background:var(--surface);border:1px solid var(--border);margin-bottom:10px}
+    .guide{display:flex;flex-direction:column;gap:0;margin-bottom:32px}
+    .guide-step{display:flex;gap:16px;position:relative;padding-bottom:28px}
+    .guide-step:last-child{padding-bottom:0}
+    .guide-step::after{content:'';position:absolute;left:15px;top:32px;bottom:0;width:2px;background:var(--border);border-radius:1px}
+    .guide-step:last-child::after{display:none}
+    .guide-num{width:32px;height:32px;border-radius:50%;background:var(--grad);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;z-index:1}
+    .guide-body h4{font-size:14px;font-weight:700;color:var(--text-1);margin-bottom:6px}
+    .guide-body p{font-size:13px;color:var(--text-2);line-height:1.6}
+    .guide-body a{color:#818cf8;text-decoration:none}
+    .guide-body a:hover{text-decoration:underline}
+    .code-pill{display:inline-block;padding:6px 12px;background:#000;border:1px solid var(--border);border-radius:8px;font-family:monospace;font-size:12px;color:#38bdf8;margin-top:8px;word-break:break-all;cursor:copy}
+    .form-group{margin-bottom:20px}
+    .form-label{display:block;font-size:13px;font-weight:600;color:var(--text-2);margin-bottom:8px}
+    .form-input{width:100%;padding:14px 16px;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:10px;color:var(--text-1);font-size:14px;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s,box-shadow .2s}
+    .form-input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(99,102,241,.15)}
+    .form-input::placeholder{color:var(--text-3)}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 28px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;border:none;font-family:'Inter',sans-serif;transition:all .2s;text-decoration:none;width:100%}
+    .btn-primary{background:var(--grad);color:#fff;box-shadow:0 4px 20px rgba(99,102,241,.3)}
+    .btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 28px rgba(99,102,241,.45)}
+    .btn-primary:disabled{opacity:.6;cursor:not-allowed}
+    .btn-linkedin{background:#0a66c2;color:#fff;box-shadow:0 4px 20px rgba(10,102,194,.3)}
+    .btn-linkedin:hover:not(:disabled){background:#085fa8;transform:translateY(-1px)}
+    .btn-linkedin:disabled{opacity:.6;cursor:not-allowed}
+    .btn-ghost{background:var(--surface);color:var(--text-2);border:1px solid var(--border);margin-top:12px}
+    .btn-ghost:hover{background:rgba(255,255,255,.08);color:var(--text-1)}
+    .perms{display:flex;flex-direction:column;gap:10px;margin-bottom:28px}
+    .perm{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:10px;background:var(--surface);border:1px solid var(--border)}
+    .perm-check{width:22px;height:22px;border-radius:50%;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;color:var(--emerald)}
+    .perm-body h5{font-size:13px;font-weight:600;color:var(--text-1)}
+    .perm-body p{font-size:12px;color:var(--text-3);margin-top:2px}
+    .success-icon{width:80px;height:80px;border-radius:50%;margin:0 auto 24px;background:rgba(16,185,129,.15);border:2px solid rgba(16,185,129,.3);display:flex;align-items:center;justify-content:center;font-size:2.5rem}
+    @media(max-width:768px){.sidebar{display:none}.main{padding:24px 16px}.card{padding:28px 20px}}
+  </style>
+</head>
+<body>
+
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loading-text">Loading your session...</div>
+</div>
+
+<div class="page" id="page" style="display:none">
+  <aside class="sidebar">
+    <a href="/?redirect=false" class="sidebar-logo">
+      <svg viewBox="0 0 36 36" fill="none"><rect width="36" height="36" rx="10" fill="url(#sg)"/><path d="M10 26V10h3v13h7v3H10z" fill="white"/><path d="M22 10h3v8l3-8h4l-4 8 4 8h-4l-3-6v6h-3V10z" fill="white"/><defs><linearGradient id="sg" x1="0" y1="0" x2="36" y2="36"><stop stop-color="#6366f1"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs></svg>
+      Algo Colleague
+    </a>
+    <div class="steps-nav">
+      <div class="step-nav-item active" id="nav-step-1"><div class="step-nav-num">1</div><div class="step-nav-label">Welcome</div></div>
+      <div class="step-connector"></div>
+      <div class="step-nav-item" id="nav-step-2"><div class="step-nav-num">2</div><div class="step-nav-label">LinkedIn API Setup</div></div>
+      <div class="step-connector"></div>
+      <div class="step-nav-item" id="nav-step-3"><div class="step-nav-num">3</div><div class="step-nav-label">Connect LinkedIn</div></div>
+      <div class="step-connector"></div>
+      <div class="step-nav-item" id="nav-step-4"><div class="step-nav-num">4</div><div class="step-nav-label">All Set!</div></div>
+    </div>
+    <div class="sidebar-bottom">
+      <div class="signed-in-badge">
+        <div class="user-avatar" id="user-avatar">?</div>
+        <div class="user-info">
+          <div class="user-name" id="user-name">Signed in</div>
+          <div class="user-email" id="user-email">via Clerk</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+  <main class="main">
+    <div class="card" id="step-card"></div>
+  </main>
+</div>
+
+<script>
+  let clerkToken = null;
+
+  async function api(url, opts) {
+    opts = opts || {};
+    const headers = {'Content-Type': 'application/json'};
+    if (clerkToken) headers['Authorization'] = 'Bearer ' + clerkToken;
+    if (opts.body && typeof opts.body === 'object') opts.body = JSON.stringify(opts.body);
+    const res = await fetch(url, Object.assign({}, opts, {headers: headers}));
+    const data = await res.json().catch(function(){ return {}; });
+    if (!res.ok) throw new Error(data.error || data.message || 'Request failed');
+    return data;
+  }
+
+  function setNavStep(step) {
+    for (let i = 1; i <= 4; i++) {
+      const el = document.getElementById('nav-step-' + i);
+      el.className = 'step-nav-item';
+      const num = el.querySelector('.step-nav-num');
+      if (i < step) { el.classList.add('done'); num.textContent = String.fromCharCode(10003); }
+      else if (i === step) { el.classList.add('active'); num.textContent = i; }
+      else { num.textContent = i; }
+    }
+  }
+
+  function showStep1() {
+    setNavStep(1);
+    document.getElementById('step-card').innerHTML = '<div class="step-badge">Step 1 of 3</div>' +
+      '<h2>Welcome to Algo Colleague! &#x1F44B;</h2>' +
+      '<p class="subtitle">You are signed in with Clerk. Now let us connect your LinkedIn account to unlock the full dashboard.</p>' +
+      '<div class="info-box"><div class="info-box-icon">&#x2139;&#xFE0F;</div><p>This app uses <strong>LinkedIn's official OAuth 2.0 API</strong> — the same method used by all major business tools. Your credentials are stored <strong>only in your account</strong>, never shared.</p></div>' +
+      '<div class="feature-item"><div style="font-size:1.5rem;flex-shrink:0">&#x1F4C5;</div><div><div style="font-weight:600;font-size:14px;color:var(--text-1)">Schedule &amp; publish posts</div><div style="font-size:12px;color:var(--text-3);margin-top:2px">Queue weeks of content in minutes</div></div></div>' +
+      '<div class="feature-item"><div style="font-size:1.5rem;flex-shrink:0">&#x1F4CA;</div><div><div style="font-weight:600;font-size:14px;color:var(--text-1)">Real analytics dashboard</div><div style="font-size:12px;color:var(--text-3);margin-top:2px">Track impressions, likes, and engagement</div></div></div>' +
+      '<div class="feature-item"><div style="font-size:1.5rem;flex-shrink:0">&#x1F916;</div><div><div style="font-weight:600;font-size:14px;color:var(--text-1)">AI content generation</div><div style="font-size:12px;color:var(--text-3);margin-top:2px">Generate professional posts in seconds</div></div></div>' +
+      '<div class="feature-item" style="margin-bottom:32px"><div style="font-size:1.5rem;flex-shrink:0">&#x1F91D;</div><div><div style="font-weight:600;font-size:14px;color:var(--text-1)">Connections manager</div><div style="font-size:12px;color:var(--text-3);margin-top:2px">Manage all LinkedIn interactions in one place</div></div></div>' +
+      '<button class="btn btn-primary" onclick="showStep2()">Let's Get Started &#x2192;</button>';
+  }
+
+  function showStep2() {
+    setNavStep(2);
+    const redirectUrl = window.location.origin + '/setup';
+    document.getElementById('step-card').innerHTML = '<div class="step-badge">&#x1F511; Step 2 of 3 &mdash; API Setup</div>' +
+      '<h2>Create Your LinkedIn Developer App</h2>' +
+      '<p class="subtitle">This is a <strong style="color:var(--text-1)">free</strong> LinkedIn developer app you create in your own LinkedIn account. It takes about 2 minutes and is required to access the LinkedIn API.</p>' +
+      '<div class="guide">' +
+        '<div class="guide-step"><div class="guide-num">1</div><div class="guide-body"><h4>Go to LinkedIn Developer Portal</h4><p>Open <a href="https://www.linkedin.com/developers/apps" target="_blank" rel="noopener noreferrer">linkedin.com/developers/apps</a> and click <strong>"Create app"</strong>. You need a LinkedIn Page to create the app — you can create a free personal one.</p></div></div>' +
+        '<div class="guide-step"><div class="guide-num">2</div><div class="guide-body"><h4>Request Products &amp; Permissions</h4><p>In the <strong>Products</strong> tab, request access to:<br><br>&#x2022; <strong>Sign In with LinkedIn using OpenID Connect</strong><br>&#x2022; <strong>Share on LinkedIn</strong><br><br><em>Both are approved instantly for development use.</em></p></div></div>' +
+        '<div class="guide-step"><div class="guide-num">3</div><div class="guide-body"><h4>Add the Redirect URL</h4><p>In the <strong>Auth</strong> tab, under "Authorized Redirect URLs", click "Add redirect URL" and paste this <strong>exact URL</strong>:</p><div class="code-pill" id="redirect-url-pill" title="Click to copy">' + redirectUrl + '</div><p style="margin-top:8px;font-size:12px;color:var(--text-3)">&#x1F4CB; Click the URL above to copy it</p></div></div>' +
+        '<div class="guide-step"><div class="guide-num">4</div><div class="guide-body"><h4>Copy your Client ID &amp; Secret</h4><p>Still on the <strong>Auth</strong> tab, copy your <strong>Client ID</strong> and <strong>Primary Client Secret</strong> and paste them in the form below.</p></div></div>' +
+      '</div>' +
+      '<div class="form-group"><label class="form-label">LinkedIn Client ID *</label><input type="text" class="form-input" id="cred-client-id" placeholder="86xxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false"></div>' +
+      '<div class="form-group"><label class="form-label">LinkedIn Client Secret *</label><div style="position:relative"><input type="password" class="form-input" id="cred-client-secret" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="new-password" style="padding-right:48px"><button onclick="toggleSecret()" type="button" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-3);cursor:pointer;font-size:1rem;padding:4px" title="Show/hide">&#x1F441;</button></div></div>' +
+      '<div class="info-box warning" style="margin-bottom:24px"><div class="info-box-icon">&#x1F512;</div><p>Your keys are stored <strong>only on your account</strong> — encrypted and never shared with any third party.</p></div>' +
+      '<button class="btn btn-primary" onclick="saveCredentials()" id="save-btn">Save &amp; Continue &#x2192;</button>' +
+      '<button class="btn btn-ghost" onclick="showStep1()">&#x2190; Back</button>';
+
+    setTimeout(function() {
+      var pill = document.getElementById('redirect-url-pill');
+      if (pill) pill.addEventListener('click', function() {
+        navigator.clipboard.writeText(redirectUrl).then(function() {
+          var old = pill.textContent; pill.textContent = 'Copied!';
+          setTimeout(function() { pill.textContent = old; }, 2000);
+        }).catch(function() {});
+      });
+    }, 100);
+
+    api('/api/auth/credentials').then(function(d) {
+      if (d.configured) {
+        var el = document.getElementById('cred-client-id');
+        if (el) el.placeholder = '(credentials already saved — enter new to update)';
+      }
+    }).catch(function() {});
+  }
+
+  function toggleSecret() {
+    var inp = document.getElementById('cred-client-secret');
+    if (inp) inp.type = inp.type === 'password' ? 'text' : 'password';
+  }
+
+  async function saveCredentials() {
+    var clientId = (document.getElementById('cred-client-id').value || '').trim();
+    var clientSecret = (document.getElementById('cred-client-secret').value || '').trim();
+    var hasExisting = (document.getElementById('cred-client-id').placeholder || '').indexOf('already saved') !== -1;
+
+    if (!clientId && !clientSecret && hasExisting) { showStep3(); return; }
+    if (!clientId || !clientSecret) { alert('Please enter both your Client ID and Client Secret.'); return; }
+
+    var btn = document.getElementById('save-btn');
+    btn.disabled = true; btn.textContent = 'Saving...';
+    try {
+      await api('/api/auth/credentials', {method: 'POST', body: {clientId: clientId, clientSecret: clientSecret}});
+      showStep3();
+    } catch(err) {
+      alert('Failed to save credentials: ' + err.message);
+      btn.disabled = false; btn.textContent = 'Save & Continue →';
+    }
+  }
+
+  function showStep3() {
+    setNavStep(3);
+    document.getElementById('step-card').innerHTML = '<div class="step-badge">&#x1F517; Step 3 of 3 &mdash; Authorize</div>' +
+      '<h2>Connect with LinkedIn</h2>' +
+      '<p class="subtitle">Click the button below to open LinkedIn's official authorization page. Approve the permissions and you will be redirected back here automatically.</p>' +
+      '<div class="perms">' +
+        '<div class="perm"><div class="perm-check">&#x2713;</div><div class="perm-body"><h5>Publish posts on your behalf</h5><p>Schedule and publish content to your LinkedIn profile</p></div></div>' +
+        '<div class="perm"><div class="perm-check">&#x2713;</div><div class="perm-body"><h5>Read your basic profile</h5><p>Display your name and photo in the dashboard</p></div></div>' +
+        '<div class="perm"><div class="perm-check">&#x2713;</div><div class="perm-body"><h5>Read your email address</h5><p>Used for account identification only</p></div></div>' +
+      '</div>' +
+      '<div class="info-box success" style="margin-bottom:28px"><div class="info-box-icon">&#x2705;</div><p>Your credentials are saved. Click below to open LinkedIn and approve the connection.</p></div>' +
+      '<button class="btn btn-linkedin" onclick="startOAuth()" id="oauth-btn">' +
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/></svg>' +
+        'Continue with LinkedIn' +
+      '</button>' +
+      '<button class="btn btn-ghost" onclick="showStep2()">&#x2190; Update Credentials</button>';
+  }
+
+  async function startOAuth() {
+    var btn = document.getElementById('oauth-btn');
+    btn.disabled = true; btn.textContent = 'Opening LinkedIn...';
+    try {
+      var redirectUri = window.location.origin + '/setup';
+      var data = await api('/api/auth/url?redirectUri=' + encodeURIComponent(redirectUri));
+      if (data.url) { window.location.href = data.url; }
+      else throw new Error('No authorization URL received');
+    } catch(err) {
+      alert('Failed to start authorization: ' + err.message);
+      btn.disabled = false;
+      btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/></svg>Continue with LinkedIn';
+    }
+  }
+
+  function showStep4(profileName) {
+    setNavStep(4);
+    document.getElementById('step-card').innerHTML = '<div style="text-align:center;padding:20px 0">' +
+      '<div class="success-icon">&#x1F389;</div>' +
+      '<h2 style="text-align:center">You're all set!</h2>' +
+      '<p class="subtitle" style="text-align:center">' + (profileName ? 'Welcome, <strong style="color:var(--text-1)">' + profileName + '</strong>! ' : '') + 'Your LinkedIn account is now connected to Algo Colleague.</p>' +
+      '<div class="info-box success" style="text-align:left;margin-bottom:28px"><div class="info-box-icon">&#x2705;</div><p>LinkedIn connected successfully. You can now schedule posts, track analytics, and manage connections from your dashboard.</p></div>' +
+      '<button class="btn btn-primary" onclick="window.location.href='/app'" style="max-width:320px;margin:0 auto">Open Dashboard &#x2192;</button>' +
+      '<p style="margin-top:16px;font-size:13px;color:var(--text-3)">You can disconnect LinkedIn at any time from Settings.</p>' +
+      '</div>';
+    api('/api/templates/seed', {method: 'POST'}).catch(function() {});
+  }
+
+  async function init() {
+    var overlay = document.getElementById('loading-overlay');
+    var page = document.getElementById('page');
+    var loadingText = document.getElementById('loading-text');
+
+    if (!window.Clerk) {
+      loadingText.textContent = 'Authentication failed to load. Please refresh the page.';
+      return;
+    }
+
+    try {
+      await window.Clerk.load();
+
+      if (!window.Clerk.user) {
+        window.location.href = '/?redirect=false';
+        return;
+      }
+
+      clerkToken = await window.Clerk.session.getToken();
+
+      var user = window.Clerk.user;
+      var name = user.fullName || user.firstName || (user.primaryEmailAddress && user.primaryEmailAddress.emailAddress) || 'User';
+      var email = (user.primaryEmailAddress && user.primaryEmailAddress.emailAddress) || '';
+      var initials = name.split(' ').map(function(n){ return n[0]; }).join('').toUpperCase().slice(0,2) || 'U';
+      document.getElementById('user-avatar').textContent = initials;
+      document.getElementById('user-name').textContent = name;
+      document.getElementById('user-email').textContent = email;
+
+      var params = new URLSearchParams(window.location.search);
+      var code = params.get('code');
+      var oauthError = params.get('error');
+
+      function showPage() {
+        overlay.style.opacity = '0';
+        setTimeout(function() { overlay.style.display = 'none'; page.style.display = 'flex'; }, 400);
+      }
+
+      if (oauthError) {
+        window.history.replaceState({}, '', '/setup');
+        showPage();
+        showStep3();
+        setTimeout(function() { alert('LinkedIn authorization was cancelled. Please try again.'); }, 300);
+        return;
+      }
+
+      if (code) {
+        loadingText.textContent = 'Finalizing your LinkedIn connection...';
+        window.history.replaceState({}, '', '/setup');
+        var redirectUri = window.location.origin + '/setup';
+        try {
+          var res = await api('/api/auth/callback', {method: 'POST', body: {code: code, redirectUri: redirectUri}});
+          showPage();
+          if (res.success) {
+            var profileName = '';
+            try { var s = await api('/api/auth/status'); profileName = (s.profile && s.profile.name) || ''; } catch(e) {}
+            showStep4(profileName);
+          } else {
+            showStep3();
+            setTimeout(function() { alert('LinkedIn connection failed. Please try again.'); }, 300);
+          }
+        } catch(err) {
+          showPage();
+          showStep3();
+          setTimeout(function() { alert('Error connecting LinkedIn: ' + err.message); }, 300);
+        }
+        return;
+      }
+
+      // Check if already fully connected
+      try {
+        var statusData = await api('/api/auth/status');
+        if (statusData.authenticated) { window.location.href = '/app'; return; }
+      } catch(e) {}
+
+      // Check if credentials already saved
+      var hasCredentials = false;
+      try { var creds = await api('/api/auth/credentials'); hasCredentials = creds.configured; } catch(e) {}
+
+      showPage();
+      if (hasCredentials) { showStep3(); } else { showStep1(); }
+
+    } catch(err) {
+      console.error('Setup error:', err);
+      loadingText.textContent = 'Something went wrong. Please refresh the page.';
+    }
+  }
+
+  window.addEventListener('load', init);
+</script>
+</body>
+</html>

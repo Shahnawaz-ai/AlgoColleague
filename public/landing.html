@@ -1202,7 +1202,9 @@
   /* ── Smooth anchor scroll ── */
   document.querySelectorAll('a[href^="#"]').forEach(a => {
     a.addEventListener('click', e => {
-      const target = document.querySelector(a.getAttribute('href'));
+      const href = a.getAttribute('href');
+      if (!href || href === '#') return; // skip bare '#' links
+      const target = document.querySelector(href);
       if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
     });
   });
@@ -1218,33 +1220,62 @@
 ></script>
 
   <script>
-    /* ── Clerk Auth Logic ── */
+    /* ── Clerk Auth Logic ──
+       Define button handlers IMMEDIATELY so clicking before Clerk loads works.
+       We queue the action and execute once Clerk is ready.
+    ── */
+    let _clerkReady = false;
+    let _pendingAction = null;
+
+    // Safe stubs — work even if Clerk is still loading
+    window.openClerkSignIn = function(e) {
+      if (e) e.preventDefault();
+      if (_clerkReady) {
+        window.Clerk.user ? (window.location.href='/setup') : window.Clerk.openSignIn({ redirectUrl: '/setup' });
+      } else {
+        _pendingAction = 'signIn';
+      }
+    };
+
+    window.openClerkSignUp = function(e) {
+      if (e) e.preventDefault();
+      if (_clerkReady) {
+        window.Clerk.user ? (window.location.href='/setup') : window.Clerk.openSignUp({ redirectUrl: '/setup' });
+      } else {
+        _pendingAction = 'signUp';
+      }
+    };
+
     window.addEventListener('load', async function () {
-      if (window.Clerk) {
+      if (!window.Clerk) {
+        // Clerk failed to load — show graceful error on button click
+        window.openClerkSignIn = window.openClerkSignUp = function(e) {
+          if (e) e.preventDefault();
+          alert('Authentication service failed to load. Please check your internet connection and reload the page.');
+        };
+        return;
+      }
+
+      try {
         await window.Clerk.load();
-        
+        _clerkReady = true;
+
+        // Auto-redirect if already signed in
         const params = new URLSearchParams(window.location.search);
         if (window.Clerk.user && params.get('redirect') !== 'false') {
-          window.location.href = '/app';
+          window.location.href = '/setup';
+          return;
         }
-        
-        window.openClerkSignIn = function(e) {
-          if (e) e.preventDefault();
-          if (window.Clerk.user) {
-            window.location.href = '/app';
-          } else {
-            window.Clerk.openSignIn({ redirectUrl: '/app' });
-          }
-        };
 
-        window.openClerkSignUp = function(e) {
-          if (e) e.preventDefault();
-          if (window.Clerk.user) {
-            window.location.href = '/app';
-          } else {
-            window.Clerk.openSignUp({ redirectUrl: '/app' });
-          }
-        };
+        // Execute any queued action from before Clerk was ready
+        if (_pendingAction === 'signIn') {
+          window.Clerk.openSignIn({ redirectUrl: '/setup' });
+        } else if (_pendingAction === 'signUp') {
+          window.Clerk.openSignUp({ redirectUrl: '/setup' });
+        }
+
+      } catch (err) {
+        console.error('Clerk failed to initialize:', err);
       }
     });
   </script>

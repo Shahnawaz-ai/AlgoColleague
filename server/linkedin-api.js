@@ -1,5 +1,5 @@
 const axios = require('axios');
-const { getSetting, setSetting, logActivity } = require('./db');
+const { getSetting, setSetting, logActivity, getUserSetting, setUserSetting } = require('./db');
 
 class LinkedInAPI {
   constructor() {
@@ -17,7 +17,6 @@ class LinkedInAPI {
   }
 
   async getAuthorizationUrl(redirectUri, userId) {
-    const { getUserSetting } = require('./db');
     const clientId = await getUserSetting(userId, 'linkedin_client_id');
     if (!clientId) throw new Error('LinkedIn Client ID not configured for this user.');
     const encRedirectUri = encodeURIComponent(redirectUri);
@@ -27,7 +26,6 @@ class LinkedInAPI {
   }
 
   async exchangeCodeForToken(code, redirectUri, userId) {
-    const { getUserSetting, setUserSetting } = require('./db');
     const clientId = await getUserSetting(userId, 'linkedin_client_id');
     const clientSecret = await getUserSetting(userId, 'linkedin_client_secret');
 

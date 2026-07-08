@@ -82,4 +82,32 @@ router.post('/logout', async (req, res) => {
   res.json({ success: true });
 });
 
+// Alias: GET /api/auth/configured — used by onboarding page
+router.get('/configured', async (req, res) => {
+  const { getUserSetting } = require('../db');
+  const userId = req.auth.userId;
+  const clientId = await getUserSetting(userId, 'linkedin_client_id');
+  const clientSecret = await getUserSetting(userId, 'linkedin_client_secret');
+  res.json({ configured: !!(clientId && clientSecret) });
+});
+
+// Alias: GET /api/auth/login — OAuth entry point used by onboarding/settings
+// Generates the LinkedIn OAuth URL and returns { authUrl }
+router.get('/login', async (req, res) => {
+  try {
+    const { getUserSetting } = require('../db');
+    const userId = req.auth.userId;
+    const clientId = await getUserSetting(userId, 'linkedin_client_id');
+    const clientSecret = await getUserSetting(userId, 'linkedin_client_secret');
+    if (!clientId || !clientSecret) {
+      return res.status(400).json({ error: 'LinkedIn credentials not configured. Please set up your credentials first.' });
+    }
+    const redirectUri = `${req.protocol}://${req.get('host')}/connect`;
+    const url = await linkedInAPI.getAuthorizationUrl(redirectUri, userId);
+    res.json({ authUrl: url });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

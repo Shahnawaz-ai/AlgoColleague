@@ -94,7 +94,7 @@ const PostsPage = {
                     ${p.scheduled_at ? `<span class="text-xs text-muted">📅 ${App.formatDateTime(p.scheduled_at)}</span>` : ''}
                     ${p.published_at ? `<span class="text-xs text-muted">✅ ${App.formatDateTime(p.published_at)}</span>` : ''}
                     ${!p.scheduled_at && !p.published_at ? `<span class="text-xs text-muted">${App.formatRelativeTime(p.created_at)}</span>` : ''}
-                    ${p.tags && p.tags.length > 0 ? (JSON.parse(p.tags || '[]')).slice(0, 3).map(tag => `<span class="text-xs" style="color:var(--accent-primary-light)">#${tag}</span>`).join('') : ''}
+                    ${p.tags && p.tags.length > 0 ? (Array.isArray(p.tags) ? p.tags : JSON.parse(p.tags || '[]')).slice(0, 3).map(tag => `<span class="text-xs" style="color:var(--accent-primary-light)">#${tag}</span>`).join('') : ''}
                   </div>
                   ${p.error_message ? `<div class="text-xs" style="color:var(--accent-rose);margin-top:4px">⚠️ ${App.truncate(p.error_message, 80)}</div>` : ''}
                 </div>

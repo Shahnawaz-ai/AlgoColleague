@@ -718,8 +718,7 @@
         </div>
       </a>
 
-      <a href="/blog-post-1.html" class="blog-card">
-        <div class="blog-card-img">⚠️</div>
+      <a href="/post-linkedin-automation-2026.html" class="blog-card">
         <div class="blog-card-body">
           <div class="blog-card-meta"><span>Strategy</span> • <span>4 min read</span></div>
           <h2 class="blog-card-title">Top 5 LinkedIn Automation Mistakes (And How to Avoid Them)</h2>
@@ -728,8 +727,7 @@
         </div>
       </a>
 
-      <a href="/blog-post-1.html" class="blog-card">
-        <div class="blog-card-img">📝</div>
+      <a href="/post-agency-b2b-strategies.html" class="blog-card">
         <div class="blog-card-body">
           <div class="blog-card-meta"><span>Content</span> • <span>7 min read</span></div>
           <h2 class="blog-card-title">The Ultimate Guide to Writing Posts That Convert</h2>
@@ -846,7 +844,9 @@
   /* ── Smooth anchor scroll ── */
   document.querySelectorAll('a[href^="#"]').forEach(a => {
     a.addEventListener('click', e => {
-      const target = document.querySelector(a.getAttribute('href'));
+      const href = a.getAttribute('href');
+      if (!href || href === '#') return; // skip bare '#' links
+      const target = document.querySelector(href);
       if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
     });
   });
