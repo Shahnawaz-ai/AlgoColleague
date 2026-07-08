@@ -3,31 +3,6 @@ const router = express.Router();
 const linkedInAPI = require('../linkedin-api');
 const { getSetting, setSetting, logActivity } = require('../db');
 
-// Check if credentials exist
-router.get('/credentials', async (req, res) => {
-  const { getUserSetting } = require('../db');
-  const userId = req.auth.userId;
-  const clientId = await getUserSetting(userId, 'linkedin_client_id');
-  const clientSecret = await getUserSetting(userId, 'linkedin_client_secret');
-  res.json({
-    configured: !!(clientId && clientSecret)
-  });
-});
-
-// Save Developer App credentials
-router.post('/credentials', async (req, res) => {
-  const { clientId, clientSecret } = req.body;
-  const { setUserSetting } = require('../db');
-  const userId = req.auth.userId;
-  if (!clientId || !clientSecret) {
-    return res.status(400).json({ error: 'Client ID and Secret are required' });
-  }
-  await setUserSetting(userId, 'linkedin_client_id', clientId.trim());
-  await setUserSetting(userId, 'linkedin_client_secret', clientSecret.trim());
-  await logActivity('config_updated', 'user', userId, 'LinkedIn API credentials updated');
-  res.json({ success: true });
-});
-
 // Get the OAuth login URL
 router.get('/url', async (req, res) => {
   try {
@@ -82,26 +57,11 @@ router.post('/logout', async (req, res) => {
   res.json({ success: true });
 });
 
-// Alias: GET /api/auth/configured — used by onboarding page
-router.get('/configured', async (req, res) => {
-  const { getUserSetting } = require('../db');
-  const userId = req.auth.userId;
-  const clientId = await getUserSetting(userId, 'linkedin_client_id');
-  const clientSecret = await getUserSetting(userId, 'linkedin_client_secret');
-  res.json({ configured: !!(clientId && clientSecret) });
-});
-
-// Alias: GET /api/auth/login — OAuth entry point used by onboarding/settings
+// Alias: GET /api/auth/login — OAuth entry point used by settings
 // Generates the LinkedIn OAuth URL and returns { authUrl }
 router.get('/login', async (req, res) => {
   try {
-    const { getUserSetting } = require('../db');
     const userId = req.auth.userId;
-    const clientId = await getUserSetting(userId, 'linkedin_client_id');
-    const clientSecret = await getUserSetting(userId, 'linkedin_client_secret');
-    if (!clientId || !clientSecret) {
-      return res.status(400).json({ error: 'LinkedIn credentials not configured. Please set up your credentials first.' });
-    }
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const redirectUri = `${protocol}://${req.get('host')}/connect`;
     const url = await linkedInAPI.getAuthorizationUrl(redirectUri, userId);

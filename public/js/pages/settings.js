@@ -20,12 +20,6 @@ const SettingsPage = {
     const isConnected = App.isAuthenticated;
     const profile = App.authStatus?.profile;
 
-    let credentialsConfigured = false;
-    try {
-      const configured = await App.api('/api/auth/credentials');
-      credentialsConfigured = configured.configured;
-    } catch (e) { console.error('Error fetching credentials:', e); }
-
     container.innerHTML = `
       <div class="page-header">
         <h1 class="page-title">⚙️ Settings</h1>
@@ -38,9 +32,7 @@ const SettingsPage = {
             <h3 class="card-title">🔗 LinkedIn Account</h3>
             ${isConnected
               ? '<span class="badge badge-published">✅ Connected</span>'
-              : credentialsConfigured
-                ? '<span class="badge badge-queued">⚙️ Credentials Set</span>'
-                : '<span class="badge badge-pending">Not Connected</span>'
+              : '<span class="badge badge-pending">Not Connected</span>'
             }
           </div>
 
@@ -62,39 +54,16 @@ const SettingsPage = {
           ` : `
             <div class="settings-connect-section">
               <p class="text-sm text-muted mb-md">
-                Connect your LinkedIn account using LinkedIn's official OAuth 2.0. 
-                Your credentials are stored <strong style="color:var(--text-secondary)">locally on your machine</strong> only.
+                Connect your LinkedIn account using LinkedIn's official OAuth 2.0.
               </p>
-
-              ${!credentialsConfigured ? `
-                <div class="onboarding-info-box" style="margin-bottom:20px">
-                  <div style="font-size:1.1rem">⚠️</div>
-                  <div class="text-sm text-muted">
-                    LinkedIn credentials not configured yet. You'll need a 
-                    <a href="https://www.linkedin.com/developers/apps" target="_blank" style="color:var(--accent-primary-light)">free LinkedIn Developer App</a>
-                    to get started.
-                  </div>
-                </div>
-              ` : `
-                <div class="onboarding-info-box" style="margin-bottom:20px;border-color:rgba(16,185,129,0.25);background:rgba(16,185,129,0.07)">
-                  <div style="font-size:1.1rem">✅</div>
-                  <div class="text-sm text-muted">
-                    LinkedIn App credentials are configured. Click <strong style="color:var(--text-secondary)">Connect with LinkedIn</strong> to authorize access.
-                  </div>
-                </div>
-              `}
 
               <div class="flex gap-sm" style="flex-wrap:wrap">
                 <button class="btn-onboarding-linkedin" style="width:auto;padding:12px 24px;font-size:0.9rem" onclick="SettingsPage.connectLinkedIn()">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/>
                   </svg>
-                  ${credentialsConfigured ? 'Connect with LinkedIn' : 'Setup & Connect'}
+                  Connect with LinkedIn
                 </button>
-                <button class="btn btn-ghost" onclick="App.navigate('onboarding')">
-                  ${credentialsConfigured ? '🔑 Change Credentials' : '📋 Setup Guide'}
-                </button>
-                <a href="https://www.linkedin.com/developers/" target="_blank" class="btn btn-ghost">📖 Developer Portal</a>
               </div>
             </div>
           `}
@@ -174,23 +143,12 @@ const SettingsPage = {
 
   async connectLinkedIn() {
     try {
-      // Check if credentials are configured first
-      const configured = await App.api('/api/auth/credentials');
-      if (!configured.configured) {
-        // Route to onboarding to enter credentials
-        App.navigate('onboarding');
-        return;
-      }
       const data = await App.api('/api/auth/login');
       if (data.authUrl) {
         window.location.href = data.authUrl;
       }
     } catch (error) {
-      if (error.message?.includes('needsSetup') || error.message?.includes('not configured')) {
-        App.navigate('onboarding');
-      } else {
-        App.toast(`Failed: ${error.message}`, 'error');
-      }
+      App.toast(`Failed: ${error.message}`, 'error');
     }
   },
 

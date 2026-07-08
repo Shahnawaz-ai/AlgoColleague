@@ -118,7 +118,6 @@ const App = {
       templates: TemplatesPage,
       settings: SettingsPage,
       comments: CommentsPage,
-      onboarding: OnboardingPage,
       profile: window.ProfilePage || { render: () => {
         document.getElementById('page-container').innerHTML = `
           <div class="page-header"><h1 class="page-title">👤 My Profile</h1></div>

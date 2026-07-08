@@ -17,8 +17,8 @@ class LinkedInAPI {
   }
 
   async getAuthorizationUrl(redirectUri, userId) {
-    const clientId = await getUserSetting(userId, 'linkedin_client_id');
-    if (!clientId) throw new Error('LinkedIn Client ID not configured for this user.');
+    const clientId = process.env.LINKEDIN_CLIENT_ID;
+    if (!clientId) throw new Error('Global LinkedIn Client ID not configured in environment variables.');
     const encRedirectUri = encodeURIComponent(redirectUri);
     const scopes = encodeURIComponent('openid profile email w_member_social');
     const state = Math.random().toString(36).substring(7);
@@ -26,8 +26,12 @@ class LinkedInAPI {
   }
 
   async exchangeCodeForToken(code, redirectUri, userId) {
-    const clientId = await getUserSetting(userId, 'linkedin_client_id');
-    const clientSecret = await getUserSetting(userId, 'linkedin_client_secret');
+    const clientId = process.env.LINKEDIN_CLIENT_ID;
+    const clientSecret = process.env.LINKEDIN_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+      throw new Error('Global LinkedIn Client credentials not configured in environment variables.');
+    }
 
     const params = new URLSearchParams();
     params.append('grant_type', 'authorization_code');
