@@ -37,7 +37,12 @@ const upload = multer({
 router.get('/', async (req, res) => {
   try {
     const userId = req.auth.userId;
-    const { status, from, to, limit = 50, offset = 0, search } = req.query;
+    const status = Array.isArray(req.query.status) ? req.query.status[0] : req.query.status;
+    const from = Array.isArray(req.query.from) ? req.query.from[0] : req.query.from;
+    const to = Array.isArray(req.query.to) ? req.query.to[0] : req.query.to;
+    const search = Array.isArray(req.query.search) ? req.query.search[0] : req.query.search;
+    const limit = req.query.limit ? (Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit) : 50;
+    const offset = req.query.offset ? (Array.isArray(req.query.offset) ? req.query.offset[0] : req.query.offset) : 0;
     let query = 'SELECT * FROM posts WHERE user_id = ?';
     let countQuery = 'SELECT COUNT(*) as count FROM posts WHERE user_id = ?';
     const params = [userId];
