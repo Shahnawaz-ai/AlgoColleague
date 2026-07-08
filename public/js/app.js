@@ -118,6 +118,20 @@ const App = {
       templates: TemplatesPage,
       settings: SettingsPage,
       comments: CommentsPage,
+      roadmap: window.RoadmapPage || { render: () => {
+        document.getElementById('page-container').innerHTML = `
+          <div class="page-header"><h1 class="page-title">🚀 Auto-Pilot</h1></div>
+          <div class="page-content"><div class="empty-state"><div class="spinner"></div></div></div>
+        `;
+        if (!document.querySelector('script[src="/js/pages/roadmap.js"]')) {
+          const script = document.createElement('script');
+          script.src = '/js/pages/roadmap.js';
+          script.onload = () => window.RoadmapPage && window.RoadmapPage.render();
+          document.body.appendChild(script);
+        } else if (window.RoadmapPage) {
+          window.RoadmapPage.render();
+        }
+      }},
       profile: window.ProfilePage || { render: () => {
         document.getElementById('page-container').innerHTML = `
           <div class="page-header"><h1 class="page-title">👤 My Profile</h1></div>

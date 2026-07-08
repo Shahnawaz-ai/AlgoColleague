@@ -72,6 +72,7 @@ app.use('/api/templates', require('./routes/templates'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/connections', require('./routes/connections'));
 app.use('/api/comments', require('./routes/comments'));
+app.use('/api/ai', require('./routes/ai'));
 
 // Vercel Cron Endpoint
 app.use('/api/cron', require('./routes/cron'));
