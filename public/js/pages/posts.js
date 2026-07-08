@@ -6,6 +6,7 @@ const PostsPage = {
   currentFilter: 'all',
   currentPage: 1,
   pageSize: 15,
+  selectedPosts: new Set(),
 
   async render() {
     const container = document.getElementById('page-container');
@@ -46,6 +47,7 @@ const PostsPage = {
   setFilter(filter) {
     this.currentFilter = filter;
     this.currentPage = 1;
+    this.selectedPosts.clear();
     document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
     const tab = document.getElementById(`filter-${filter}`);
     if (tab) tab.classList.add('active');
@@ -81,11 +83,18 @@ const PostsPage = {
       }
 
       container.innerHTML = `
+        <div class="flex justify-between items-center mb-md" id="bulk-actions" style="display: ${this.selectedPosts.size > 0 ? 'flex' : 'none'}; background: rgba(220, 38, 38, 0.1); padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(220, 38, 38, 0.2);">
+          <span id="bulk-count" style="font-weight: 600; color: var(--accent-rose);">${this.selectedPosts.size} selected</span>
+          <button id="btn-bulk-delete" class="btn btn-primary btn-sm" style="background: var(--accent-rose); border-color: var(--accent-rose)" onclick="PostsPage.bulkDelete()">🗑️ Delete Selected</button>
+        </div>
         <div class="card">
           <div style="display:flex;flex-direction:column;gap:0">
             ${posts.map((p, i) => `
               <div class="post-row ${i < posts.length - 1 ? 'post-row-border' : ''}" id="post-row-${p.id}">
-                <div class="post-row-indicator ${p.status}"></div>
+                <div style="padding: 16px 0 16px 16px; display: flex; align-items: center;">
+                  <input type="checkbox" ${this.selectedPosts.has(p.id) ? 'checked' : ''} onchange="PostsPage.toggleSelect('${p.id}', this.checked)" style="width:16px;height:16px;cursor:pointer; accent-color: var(--accent-primary);">
+                </div>
+                <div class="post-row-indicator ${p.status}" style="margin-left: 12px"></div>
                 <div class="post-row-content">
                   <div class="post-row-text">${App.truncate(p.content, 120)}</div>
                   <div class="post-row-meta">
@@ -129,6 +138,57 @@ const PostsPage = {
     } catch (err) {
       container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">❌</div><div class="empty-state-title">Failed to load posts</div><div class="empty-state-text">${err.message}</div></div>`;
     }
+  },
+
+  toggleSelect(id, checked) {
+    if (checked) this.selectedPosts.add(id);
+    else this.selectedPosts.delete(id);
+    this.updateBulkActions();
+  },
+
+  updateBulkActions() {
+    const bulkBar = document.getElementById('bulk-actions');
+    const bulkCount = document.getElementById('bulk-count');
+    if (this.selectedPosts.size > 0) {
+      if (bulkBar) bulkBar.style.display = 'flex';
+      if (bulkCount) bulkCount.textContent = `${this.selectedPosts.size} selected`;
+    } else {
+      if (bulkBar) bulkBar.style.display = 'none';
+    }
+  },
+
+  async bulkDelete() {
+    if (!await App.confirm(\`Delete \${this.selectedPosts.size} selected posts permanently?\`)) return;
+    
+    const btn = document.getElementById('btn-bulk-delete');
+    if (btn) btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;margin-right:8px;border-width:2px"></span> Deleting...';
+    
+    let deletedCount = 0;
+    const errors = [];
+    
+    for (const id of this.selectedPosts) {
+      try {
+        await App.api(\`/api/posts/\${id}\`, { method: 'DELETE' });
+        deletedCount++;
+        const row = document.getElementById(\`post-row-\${id}\`);
+        if (row) {
+          row.style.opacity = '0';
+          row.style.transform = 'translateX(30px)';
+        }
+      } catch (e) {
+        errors.push(e.message);
+      }
+    }
+    
+    if (errors.length > 0) {
+      App.toast(\`Deleted \${deletedCount}. Failed \${errors.length}: \${errors[0]}\`, 'error');
+    } else {
+      App.toast(\`Successfully deleted \${deletedCount} posts\`, 'success');
+    }
+    
+    this.selectedPosts.clear();
+    await new Promise(r => setTimeout(r, 300));
+    this.loadPosts();
   },
 
   prevPage() {

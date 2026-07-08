@@ -38,7 +38,7 @@ const DashboardPage = {
           <!-- Professional Stats Grid -->
           <div class="stats-grid" style="gap: 24px; margin-bottom: 32px;">
             
-            <div class="stat-card" style="display:flex; flex-direction:column; justify-content:space-between;">
+            <div class="stat-card" style="display:flex; flex-direction:column; justify-content:space-between; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background='transparent'" onclick="App.navigate('posts'); setTimeout(() => PostsPage.setFilter('published'), 100)">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
                 <div class="stat-card-label" style="font-weight: 600; font-size: 0.9rem; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted);">Published</div>
                 <div class="stat-card-icon" style="background: rgba(16,185,129,0.1); padding: 8px; border-radius: 8px; font-size: 1.2rem;">📤</div>
@@ -50,7 +50,7 @@ const DashboardPage = {
               </div>
             </div>
 
-            <div class="stat-card" style="display:flex; flex-direction:column; justify-content:space-between;">
+            <div class="stat-card" style="display:flex; flex-direction:column; justify-content:space-between; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background='transparent'" onclick="App.navigate('posts'); setTimeout(() => PostsPage.setFilter('queued'), 100)">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
                 <div class="stat-card-label" style="font-weight: 600; font-size: 0.9rem; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted);">Scheduled</div>
                 <div class="stat-card-icon" style="background: rgba(59,130,246,0.1); padding: 8px; border-radius: 8px; font-size: 1.2rem;">📅</div>
