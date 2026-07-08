@@ -60,6 +60,9 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Vercel Cron Endpoint (Public so Vercel can trigger it)
+app.use('/api/cron', require('./routes/cron'));
+
 // Protect API routes
 app.use('/api', ClerkExpressRequireAuth({
   // Use default options
@@ -74,8 +77,7 @@ app.use('/api/connections', require('./routes/connections'));
 app.use('/api/comments', require('./routes/comments'));
 app.use('/api/ai', require('./routes/ai'));
 
-// Vercel Cron Endpoint
-app.use('/api/cron', require('./routes/cron'));
+
 
 // Mock scheduler endpoint since we use cron
 app.get('/api/scheduler/status', (req, res) => {
@@ -126,6 +128,17 @@ async function start() {
       app.listen(PORT, '0.0.0.0', async () => {
         console.log(`\n✈️  Algo Colleague running at http://127.0.0.1:${PORT}`);
         console.log(`   Mode: ${process.env.NODE_ENV === 'production' ? '🟢 production' : '🟡 development'}\n`);
+
+        // Local scheduler: check the post queue every 60 seconds
+        const { processPostQueue } = require('./routes/cron');
+        setInterval(async () => {
+          try {
+            await processPostQueue();
+          } catch (err) {
+            console.error('Local scheduler error:', err.message);
+          }
+        }, 60 * 1000);
+        console.log('⏰ Local post scheduler started (checks every 60s)');
       });
     }
 

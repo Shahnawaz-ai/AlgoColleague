@@ -24,11 +24,6 @@ router.get('/', async (req, res) => {
 });
 
 async function processPostQueue() {
-  if (!linkedInAPI.isTokenValid()) {
-    console.log('Token invalid. Cannot process queue.');
-    return;
-  }
-
   const now = new Date().toISOString();
   // Vercel Free Serverless Functions have a 10-second timeout!
   // To avoid timeouts, we process exactly ONE post per minute.
@@ -38,6 +33,11 @@ async function processPostQueue() {
   );
 
   for (const post of duePosts) {
+    if (!(await linkedInAPI.isTokenValid(post.user_id))) {
+      console.log(`Token invalid for user ${post.user_id}. Failing post ${post.id}.`);
+      await dbRun("UPDATE posts SET status = 'failed', error_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", 'LinkedIn token invalid or expired. Please reconnect your account.', post.id);
+      continue;
+    }
     await publishPost(post);
   }
 }
@@ -51,9 +51,9 @@ async function publishPost(post) {
     const mediaUrls = JSON.parse(post.media_urls || '[]');
 
     if (mediaUrls.length > 0 && post.post_type !== 'text') {
-      result = await linkedInAPI.createImagePost(post.content, mediaUrls);
+      result = await linkedInAPI.createImagePost(post.user_id, post.content, mediaUrls);
     } else {
-      result = await linkedInAPI.createTextPost(post.content);
+      result = await linkedInAPI.createTextPost(post.user_id, post.content);
     }
 
     if (result.success) {
@@ -81,8 +81,6 @@ async function publishPost(post) {
 }
 
 async function refreshAnalytics() {
-  if (!linkedInAPI.isTokenValid()) return;
-
   const publishedPosts = await dbAll(
     `SELECT * FROM posts WHERE status = 'published' AND linkedin_post_id IS NOT NULL ORDER BY published_at DESC LIMIT 5`
   );
@@ -90,8 +88,11 @@ async function refreshAnalytics() {
   console.log(`📊 Refreshing analytics for ${publishedPosts.length} posts...`);
 
   for (const post of publishedPosts) {
+    if (!(await linkedInAPI.isTokenValid(post.user_id))) {
+      continue;
+    }
     try {
-      const analytics = await linkedInAPI.getPostAnalytics(post.linkedin_post_id);
+      const analytics = await linkedInAPI.getPostAnalytics(post.user_id, post.linkedin_post_id);
       if (analytics) {
         const analyticsId = `analytics_${post.id}`;
         const likes = analytics.likesSummary?.totalLikes || 0;
@@ -112,3 +113,4 @@ async function refreshAnalytics() {
 }
 
 module.exports = router;
+module.exports.processPostQueue = processPostQueue;
