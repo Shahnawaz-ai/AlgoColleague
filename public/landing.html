@@ -1262,6 +1262,7 @@
 
         // Auto-redirect if already signed in
         const params = new URLSearchParams(window.location.search);
+        // If user is already signed in, go straight to setup
         if (window.Clerk.user && params.get('redirect') !== 'false') {
           window.location.href = '/setup';
           return;
