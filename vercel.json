@@ -32,6 +32,10 @@
       "destination": "/public/connect.html"
     },
     {
+      "source": "/setup",
+      "destination": "/public/setup.html"
+    },
+    {
       "source": "/app",
       "destination": "/public/app.html"
     },
