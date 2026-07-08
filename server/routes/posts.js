@@ -3,9 +3,23 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
+const http = require('http');
 const { v4: uuidv4 } = require('uuid');
 const { dbGet, dbAll, dbRun, logActivity } = require('../db');
 const linkedInAPI = require('../linkedin-api');
+
+// Fire-and-forget ping to wake up the cron scheduler
+function triggerCronPing() {
+  try {
+    const host = process.env.VERCEL_URL || process.env.APP_URL?.replace('https://', '') || `localhost:${process.env.PORT || 3000}`;
+    const protocol = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https';
+    const client = protocol === 'https' ? https : http;
+    const pingReq = client.get(`${protocol}://${host}/api/cron`, () => {});
+    pingReq.on('error', () => {}); // Ignore errors
+    pingReq.setTimeout(5000, () => pingReq.destroy());
+  } catch (e) { /* ignore */ }
+}
 
 // Configure multer for image uploads
 const uploadDir = process.env.VERCEL ? '/tmp/uploads' : path.join(__dirname, '..', '..', 'data', 'uploads');
@@ -136,6 +150,11 @@ router.post('/', async (req, res) => {
     const post = await dbGet('SELECT * FROM posts WHERE id = ? AND user_id = ?', id, userId);
     post.media_urls = JSON.parse(post.media_urls || '[]');
     post.tags = JSON.parse(post.tags || '[]');
+
+    // If the post is queued, wake up the cron scheduler
+    if (finalStatus === 'queued') {
+      triggerCronPing();
+    }
 
     res.status(201).json({ post });
   } catch (err) {

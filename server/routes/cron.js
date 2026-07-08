@@ -1,36 +1,88 @@
 const express = require('express');
 const router = express.Router();
+const https = require('https');
+const http = require('http');
 const { dbGet, dbAll, dbRun, logActivity } = require('../db');
 const linkedInAPI = require('../linkedin-api');
 
-// Secure the cron endpoint in production so only Vercel can trigger it
-// Vercel sends a specific header for cron jobs if configured, or we can use a secret token
-// For this MVP, we will just allow it, or secure it with an env var CRON_SECRET if desired.
+// Self-ping tracking to avoid duplicate loops
+let selfPingScheduled = false;
 
 router.get('/', async (req, res) => {
   try {
     console.log('🤖 Cron endpoint triggered');
-    await processPostQueue();
-    // We only refresh analytics occasionally to save Vercel execution time
-    if (Math.random() < 0.1) { // 10% chance to refresh analytics on any given minute
+    const result = await processPostQueue();
+    
+    // We only refresh analytics occasionally to save execution time
+    if (Math.random() < 0.1) {
       await refreshAnalytics();
     }
+
+    // Self-ping: if there are upcoming queued posts, schedule another call
+    // This works around Vercel Hobby's daily-only cron limitation
+    const upcomingPosts = await dbAll(
+      `SELECT COUNT(*) as count FROM posts WHERE status = 'queued'`
+    );
+    const hasUpcoming = upcomingPosts[0]?.count > 0;
+
+    if (hasUpcoming && !selfPingScheduled) {
+      scheduleSelfPing(req);
+    }
     
-    res.json({ success: true, message: 'Cron executed successfully' });
+    res.json({ 
+      success: true, 
+      message: 'Cron executed successfully',
+      processed: result,
+      upcomingQueued: upcomingPosts[0]?.count || 0
+    });
   } catch (err) {
     console.error('Cron failed:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
+function scheduleSelfPing(req) {
+  if (selfPingScheduled) return;
+  selfPingScheduled = true;
+
+  // Determine the base URL for self-ping
+  const host = req.headers.host || process.env.VERCEL_URL || process.env.APP_URL?.replace('https://', '') || `localhost:${process.env.PORT || 3000}`;
+  const protocol = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https';
+  const pingUrl = `${protocol}://${host}/api/cron`;
+
+  console.log(`⏰ Scheduling self-ping in 60s → ${pingUrl}`);
+
+  setTimeout(() => {
+    selfPingScheduled = false;
+    const client = protocol === 'https' ? https : http;
+    const pingReq = client.get(pingUrl, (res) => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        console.log(`🔁 Self-ping response: ${res.statusCode}`);
+      });
+    });
+    pingReq.on('error', (err) => {
+      console.error('Self-ping failed:', err.message);
+    });
+    pingReq.setTimeout(8000, () => {
+      pingReq.destroy();
+    });
+  }, 60 * 1000);
+}
+
 async function processPostQueue() {
   const now = new Date().toISOString();
-  // Vercel Free Serverless Functions have a 10-second timeout!
-  // To avoid timeouts, we process exactly ONE post per minute.
+  console.log(`⏱️  Checking queue at ${now}`);
+  
+  // Process up to 3 due posts per run
   const duePosts = await dbAll(
-    `SELECT * FROM posts WHERE status = 'queued' AND scheduled_at <= ? ORDER BY scheduled_at ASC LIMIT 1`,
+    `SELECT * FROM posts WHERE status = 'queued' AND scheduled_at <= ? ORDER BY scheduled_at ASC LIMIT 3`,
     now
   );
+
+  console.log(`📬 Found ${duePosts.length} due posts`);
+  let processed = 0;
 
   for (const post of duePosts) {
     if (!(await linkedInAPI.isTokenValid(post.user_id))) {
@@ -39,7 +91,10 @@ async function processPostQueue() {
       continue;
     }
     await publishPost(post);
+    processed++;
   }
+  
+  return processed;
 }
 
 async function publishPost(post) {
