@@ -63,11 +63,13 @@ router.get('/', async (req, res) => {
     }
     if (from) {
       query += ' AND (scheduled_at >= ? OR published_at >= ?)';
+      countQuery += ' AND (scheduled_at >= ? OR published_at >= ?)';
       params.push(from, from);
       countParams.push(from, from);
     }
     if (to) {
       query += ' AND (scheduled_at <= ? OR published_at <= ?)';
+      countQuery += ' AND (scheduled_at <= ? OR published_at <= ?)';
       params.push(to, to);
       countParams.push(to, to);
     }
