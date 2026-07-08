@@ -13,11 +13,11 @@ const App = {
     const params = new URLSearchParams(window.location.search);
     if (params.get('auth_success')) {
       this.toast('\uD83C\uDF89 Successfully connected to LinkedIn!', 'success', 6000);
-      window.history.replaceState({}, '', '/');
+      window.history.replaceState({}, '', '/app');
     }
     if (params.get('auth_error')) {
       this.toast(`Auth error: ${params.get('auth_error')}`, 'error', 8000);
-      window.history.replaceState({}, '', '/');
+      window.history.replaceState({}, '', '/app');
     }
 
     // Check auth status
@@ -170,22 +170,57 @@ const App = {
 
   // --- Toast Notifications ---
   toast(message, type = 'info', duration = 4000) {
-    const container = document.getElementById('toast-container');
+    let container = document.getElementById('toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'toast-container';
+      container.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:12px;';
+      document.body.appendChild(container);
+    }
+
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
 
     const icons = { success: '✅', error: '❌', info: 'ℹ️', warning: '⚠️' };
-    toast.innerHTML = `
-      <span>${icons[type] || 'ℹ️'}</span>
-      <span style="flex:1">${message}</span>
-      <button onclick="this.parentElement.classList.add('toast-out'); setTimeout(() => this.parentElement.remove(), 300)" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size:1rem;">×</button>
+    
+    // Add inline styles for toast since they are missing in CSS
+    toast.style.cssText = `
+      display:flex; align-items:center; gap:12px; padding:14px 18px; border-radius:12px;
+      background:var(--bg); border:1px solid var(--border); box-shadow:0 8px 30px rgba(0,0,0,0.5);
+      color:var(--text-primary); font-size:14px; font-weight:500; min-width:300px;
+      transform:translateY(100px); opacity:0; transition:all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     `;
+
+    toast.innerHTML = `
+      <span style="font-size:1.2rem;">${icons[type] || 'ℹ️'}</span>
+      <span style="flex:1">${message}</span>
+      <button onclick="this.parentElement.style.opacity='0'; this.parentElement.style.transform='translateY(10px) scale(0.95)'; setTimeout(() => this.parentElement.remove(), 300)" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem;padding:0;display:flex;align-items:center;justify-content:center;">×</button>
+    `;
+
+    // Apply color variants based on type
+    if (type === 'success') {
+      toast.style.borderLeft = '4px solid var(--accent-emerald)';
+    } else if (type === 'error') {
+      toast.style.borderLeft = '4px solid var(--accent-rose)';
+    } else if (type === 'warning') {
+      toast.style.borderLeft = '4px solid var(--accent-amber)';
+    } else {
+      toast.style.borderLeft = '4px solid var(--accent-indigo)';
+    }
 
     container.appendChild(toast);
 
+    // Animate in
+    setTimeout(() => {
+      toast.style.transform = 'translateY(0)';
+      toast.style.opacity = '1';
+    }, 10);
+
+    // Remove automatically
     setTimeout(() => {
       if (toast.parentElement) {
-        toast.classList.add('toast-out');
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px) scale(0.95)';
         setTimeout(() => toast.remove(), 300);
       }
     }, duration);
