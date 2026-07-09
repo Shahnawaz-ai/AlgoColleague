@@ -3,6 +3,9 @@
    ================================================================ */
 
 const AnalyticsPage = {
+  refreshing: false,
+  pollInterval: null,
+
   async render() {
     const container = document.getElementById('page-container');
 
@@ -13,32 +16,84 @@ const AnalyticsPage = {
         App.api('/api/analytics/trend?days=30'),
       ]);
 
+      // Build reactions breakdown section from all analytics data
+      let reactionsHtml = '';
+      try {
+        const postsData = await App.api('/api/posts?status=published&limit=50');
+        const breakdown = {};
+        postsData.posts.forEach(p => {
+          if (p.analytics && p.analytics.reactions_breakdown) {
+            Object.entries(p.analytics.reactions_breakdown).forEach(([type, count]) => {
+              breakdown[type] = (breakdown[type] || 0) + count;
+            });
+          }
+        });
+        const total = Object.values(breakdown).reduce((a, b) => a + b, 0);
+        if (total > 0) {
+          const reactionEmojis = {
+            'LIKE': '👍', 'PRAISE': '👏', 'APPRECIATION': '👏',
+            'EMPATHY': '❤️', 'INTEREST': '💡', 'CURIOUS': '💡',
+            'CELEBRATE': '🎉', 'ENTERTAINMENT': '😄', 'FUNNY': '😄',
+            'MAYBE': '🤔', 'SUPPORT': '💪',
+          };
+          reactionsHtml = `
+            <div class="card mt-lg">
+              <div class="card-header">
+                <h3 class="card-title">❤️ Reactions Breakdown</h3>
+                <span class="text-xs text-muted">${total} total reactions</span>
+              </div>
+              <div class="flex gap-md" style="flex-wrap:wrap; padding:8px 0">
+                ${Object.entries(breakdown).sort((a, b) => b[1] - a[1]).map(([type, count]) => {
+                  const pct = ((count / total) * 100).toFixed(1);
+                  const emoji = reactionEmojis[type] || '👍';
+                  return `
+                    <div style="display:flex; flex-direction:column; align-items:center; min-width:80px; padding:12px; background:var(--surface); border:1px solid var(--border-subtle); border-radius:12px;">
+                      <div style="font-size:1.5rem; margin-bottom:4px;">${emoji}</div>
+                      <div style="font-size:1.2rem; font-weight:800; color:var(--text-primary)">${count}</div>
+                      <div class="text-xs text-muted">${type.charAt(0) + type.slice(1).toLowerCase()}</div>
+                      <div class="text-xs" style="color:var(--accent-primary-light); font-weight:600; margin-top:2px">${pct}%</div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          `;
+        }
+      } catch (e) {
+        // Non-critical, skip reactions breakdown
+      }
+
       container.innerHTML = `
-        <div class="page-header">
-          <h1 class="page-title">📈 Analytics</h1>
-          <p class="page-subtitle">Track your LinkedIn performance and engagement trends</p>
+        <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-end;">
+          <div>
+            <h1 class="page-title">📈 Analytics</h1>
+            <p class="page-subtitle">Track your LinkedIn performance and engagement trends</p>
+          </div>
+          <button class="btn btn-primary" id="refresh-analytics-btn" onclick="AnalyticsPage.refreshAll()" style="padding:10px 20px;">
+            🔄 Refresh from LinkedIn
+          </button>
         </div>
         <div class="page-content">
           <!-- Key Metrics -->
           <div class="stats-grid">
             <div class="stat-card">
               <div class="stat-card-icon">👁️</div>
-              <div class="stat-card-value">${overview.engagement.total_impressions.toLocaleString()}</div>
+              <div class="stat-card-value">${(overview.engagement.total_impressions || 0).toLocaleString()}</div>
               <div class="stat-card-label">Total Impressions</div>
             </div>
             <div class="stat-card">
               <div class="stat-card-icon">❤️</div>
-              <div class="stat-card-value">${overview.engagement.total_likes.toLocaleString()}</div>
+              <div class="stat-card-value">${(overview.engagement.total_likes || 0).toLocaleString()}</div>
               <div class="stat-card-label">Total Reactions</div>
             </div>
             <div class="stat-card">
               <div class="stat-card-icon">💬</div>
-              <div class="stat-card-value">${overview.engagement.total_comments.toLocaleString()}</div>
+              <div class="stat-card-value">${(overview.engagement.total_comments || 0).toLocaleString()}</div>
               <div class="stat-card-label">Total Comments</div>
             </div>
             <div class="stat-card">
               <div class="stat-card-icon">🔁</div>
-              <div class="stat-card-value">${overview.engagement.total_shares.toLocaleString()}</div>
+              <div class="stat-card-value">${(overview.engagement.total_shares || 0).toLocaleString()}</div>
               <div class="stat-card-label">Total Shares</div>
             </div>
           </div>
@@ -126,6 +181,8 @@ const AnalyticsPage = {
             </div>
           </div>
 
+          ${reactionsHtml}
+
           <!-- Post Performance Table -->
           <div class="card mt-lg">
             <div class="card-header">
@@ -161,10 +218,19 @@ const AnalyticsPage = {
       if (overview.stats.publishedPosts > 0) {
         this.loadPostPerformance();
       }
+      
+      if (this.pollInterval) clearInterval(this.pollInterval);
+      this.pollInterval = setInterval(() => {
+        if (App.currentPage !== 'analytics') {
+          clearInterval(this.pollInterval);
+          return;
+        }
+        this.pollUpdates();
+      }, 1000);
     } catch (error) {
       container.innerHTML = `
         <div class="page-header"><h1 class="page-title">📈 Analytics</h1></div>
-        <div class="page-content"><div class="empty-state"><div class="empty-state-icon">❌</div><div class="empty-state-title">Failed to load analytics</div><div class="empty-state-text">${error.message}</div></div></div>
+        <div class="page-content"><div class="empty-state"><div class="empty-state-icon">❌</div><div class="empty-state-title">Failed to load analytics</div><div class="empty-state-text">${error.message}</div><button class="btn btn-primary mt-md" onclick="AnalyticsPage.render()">Retry</button></div></div>
       `;
     }
   },
@@ -181,24 +247,71 @@ const AnalyticsPage = {
         return;
       }
 
-      tbody.innerHTML = data.posts.map(p => `
-        <tr>
-          <td style="max-width:300px">
-            <div style="font-weight:500; color:var(--text-primary)">${App.truncate(p.content, 60)}</div>
-          </td>
-          <td>${App.getStatusBadge(p.status)}</td>
-          <td class="text-sm text-muted">${App.formatDateTime(p.published_at)}</td>
-          <td>
-            <div class="flex gap-sm text-xs">
-              <span data-tooltip="Reactions">❤️ —</span>
-              <span data-tooltip="Comments">💬 —</span>
-              <span data-tooltip="Shares">🔁 —</span>
-            </div>
-          </td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = data.posts.map(p => {
+        const likes = p.analytics?.likes || 0;
+        const comments = p.analytics?.comments || 0;
+        const shares = p.analytics?.shares || 0;
+        return `
+          <tr>
+            <td style="max-width:300px">
+              <div style="font-weight:500; color:var(--text-primary)">${App.truncate(p.content, 60)}</div>
+            </td>
+            <td>${App.getStatusBadge(p.status)}</td>
+            <td class="text-sm text-muted">${App.formatDateTime(p.published_at)}</td>
+            <td>
+              <div class="flex gap-sm text-xs">
+                <span data-tooltip="Reactions" style="color:${likes > 0 ? 'var(--accent-rose)' : 'var(--text-muted)'}">❤️ ${likes}</span>
+                <span data-tooltip="Comments" style="color:${comments > 0 ? 'var(--accent-primary-light)' : 'var(--text-muted)'}">💬 ${comments}</span>
+                <span data-tooltip="Shares" style="color:${shares > 0 ? 'var(--accent-emerald)' : 'var(--text-muted)'}">🔁 ${shares}</span>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
     } catch (e) {
       tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Failed to load</td></tr>';
     }
   },
+
+  async refreshAll() {
+    if (this.refreshing) return;
+    this.refreshing = true;
+    const btn = document.getElementById('refresh-analytics-btn');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Syncing from LinkedIn...';
+    }
+
+    try {
+      await App.api('/api/analytics/refresh', { method: 'POST' });
+      App.toast('✅ Analytics, comments & reactions synced from LinkedIn!', 'success', 5000);
+      // Re-render the page to show fresh data
+      await this.render();
+    } catch (error) {
+      App.toast(`Refresh failed: ${error.message}`, 'error');
+    } finally {
+      this.refreshing = false;
+    }
+  },
+
+  async pollUpdates() {
+    if (this.refreshing) return;
+    try {
+      const overview = await App.api('/api/analytics/overview');
+      
+      const vals = document.querySelectorAll('.stat-card-value');
+      if (vals.length >= 4) {
+        vals[0].textContent = (overview.engagement.total_impressions || 0).toLocaleString();
+        vals[1].textContent = (overview.engagement.total_likes || 0).toLocaleString();
+        vals[2].textContent = (overview.engagement.total_comments || 0).toLocaleString();
+        vals[3].textContent = (overview.engagement.total_shares || 0).toLocaleString();
+      }
+      
+      if (overview.stats.publishedPosts > 0) {
+        this.loadPostPerformance(true); // pass true to indicate silent background load
+      }
+    } catch (e) {
+      // Ignore polling errors to prevent spam
+    }
+  }
 };

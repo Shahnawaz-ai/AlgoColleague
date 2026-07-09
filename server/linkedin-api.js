@@ -84,7 +84,10 @@ class LinkedInAPI {
 
     try {
       const response = await axios.get('https://api.linkedin.com/v2/userinfo', {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'LinkedIn-Version': '202401'
+        }
       });
       
       const profile = response.data;
@@ -127,6 +130,7 @@ class LinkedInAPI {
         {
           headers: {
             Authorization: `Bearer ${token}`,
+            'LinkedIn-Version': '202401',
             'X-Restli-Protocol-Version': '2.0.0',
             'Content-Type': 'application/json'
           }
@@ -146,10 +150,161 @@ class LinkedInAPI {
     throw new Error('Image posting is simplified and uses text fallback in this version.');
   }
 
-  async getPostComments(userId, postUrn) { return []; }
-  async replyToComment(userId, postUrn, commentUrn, replyText) { return { success: false }; }
-  async getPostReactions(userId, postUrn) { return []; }
-  async getPostAnalytics(userId, postUrn) { return null; }
+  async getPostComments(userId, postUrn) {
+    try {
+      await this.throttle();
+      const token = await getUserSetting(userId, 'linkedin_token');
+      if (!token) return [];
+
+      // Normalize URN format for the API
+      const urn = postUrn.startsWith('urn:') ? postUrn : `urn:li:share:${postUrn}`;
+      const encodedUrn = encodeURIComponent(urn);
+
+      const response = await axios.get(
+        `https://api.linkedin.com/v2/socialActions/${encodedUrn}/comments?count=50`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'LinkedIn-Version': '202401',
+            'X-Restli-Protocol-Version': '2.0.0',
+          },
+        }
+      );
+
+      const elements = response.data?.elements || [];
+      return elements.map(comment => ({
+        linkedin_comment_id: comment['$URN'] || comment.id || null,
+        author_urn: comment.actor || '',
+        author_name: comment.actor ? comment.actor.split(':').pop() : 'LinkedIn User',
+        content: comment.message?.text || comment.object || '',
+        created_at: comment.created?.time ? new Date(comment.created.time).toISOString() : new Date().toISOString(),
+        parent_comment_id: comment.parentComment || null,
+      }));
+    } catch (error) {
+      console.error('getPostComments failed:', error.response?.status, error.response?.data?.message || error.message);
+      return [];
+    }
+  }
+
+  async replyToComment(userId, postUrn, commentUrn, replyText) {
+    try {
+      await this.throttle();
+      const token = await getUserSetting(userId, 'linkedin_token');
+      const profileId = await getUserSetting(userId, 'linkedin_profile_id');
+      if (!token || !profileId) return { success: false, error: 'Not authenticated' };
+
+      const urn = postUrn.startsWith('urn:') ? postUrn : `urn:li:share:${postUrn}`;
+      const encodedUrn = encodeURIComponent(urn);
+
+      const payload = {
+        actor: `urn:li:person:${profileId}`,
+        message: { text: replyText },
+        parentComment: commentUrn,
+      };
+
+      await axios.post(
+        `https://api.linkedin.com/v2/socialActions/${encodedUrn}/comments`,
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'LinkedIn-Version': '202401',
+            'X-Restli-Protocol-Version': '2.0.0',
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      return { success: true };
+    } catch (error) {
+      console.error('replyToComment failed:', error.response?.status, error.response?.data?.message || error.message);
+      return { success: false, error: error.response?.data?.message || error.message };
+    }
+  }
+
+  async getPostReactions(userId, postUrn) {
+    try {
+      await this.throttle();
+      const token = await getUserSetting(userId, 'linkedin_token');
+      if (!token) return [];
+
+      const urn = postUrn.startsWith('urn:') ? postUrn : `urn:li:share:${postUrn}`;
+      const encodedUrn = encodeURIComponent(urn);
+
+      const response = await axios.get(
+        `https://api.linkedin.com/v2/socialActions/${encodedUrn}/likes?count=100`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'LinkedIn-Version': '202401',
+            'X-Restli-Protocol-Version': '2.0.0',
+          },
+        }
+      );
+
+      const elements = response.data?.elements || [];
+      return elements.map(reaction => ({
+        actor: reaction.actor || '',
+        type: reaction.reactionType || 'LIKE',
+        created_at: reaction.created?.time ? new Date(reaction.created.time).toISOString() : null,
+      }));
+    } catch (error) {
+      console.error('getPostReactions failed:', error.response?.status, error.response?.data?.message || error.message);
+      return [];
+    }
+  }
+
+  async getPostAnalytics(userId, postUrn) {
+    try {
+      await this.throttle();
+      const token = await getUserSetting(userId, 'linkedin_token');
+      if (!token) return null;
+
+      const urn = postUrn.startsWith('urn:') ? postUrn : `urn:li:share:${postUrn}`;
+      const encodedUrn = encodeURIComponent(urn);
+
+      // Fetch social action counts (likes, comments, shares) for the post
+      const response = await axios.get(
+        `https://api.linkedin.com/v2/socialActions/${encodedUrn}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'LinkedIn-Version': '202401',
+            'X-Restli-Protocol-Version': '2.0.0',
+          },
+        }
+      );
+
+      const data = response.data || {};
+      const likesCount = data.likesSummary?.totalLikes ?? data.likesSummary?.aggregatedTotalLikes ?? 0;
+      const commentsCount = data.commentsSummary?.totalFirstLevelComments ?? data.commentsSummary?.aggregatedTotalComments ?? 0;
+      const sharesCount = data.sharesSummary?.totalShares ?? 0;
+
+      // Also try to get reactions breakdown
+      let reactionsBreakdown = {};
+      try {
+        const reactions = await this.getPostReactions(userId, postUrn);
+        const breakdown = {};
+        reactions.forEach(r => {
+          const type = r.type || 'LIKE';
+          breakdown[type] = (breakdown[type] || 0) + 1;
+        });
+        reactionsBreakdown = breakdown;
+      } catch (e) {
+        // Non-critical, continue without breakdown
+      }
+
+      return {
+        likesSummary: { totalLikes: likesCount },
+        commentsSummary: { totalFirstLevelComments: commentsCount },
+        sharesSummary: { totalShares: sharesCount },
+        reactionsBreakdown,
+      };
+    } catch (error) {
+      console.error('getPostAnalytics failed:', error.response?.status, error.response?.data?.message || error.message);
+      return null;
+    }
+  }
 }
 
 module.exports = new LinkedInAPI();

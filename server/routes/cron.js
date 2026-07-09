@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const https = require('https');
 const http = require('http');
+const { v4: uuidv4 } = require('uuid');
 const { dbGet, dbAll, dbRun, logActivity } = require('../db');
 const linkedInAPI = require('../linkedin-api');
 
@@ -13,10 +14,10 @@ router.get('/', async (req, res) => {
     console.log('🤖 Cron endpoint triggered');
     const result = await processPostQueue();
     
-    // We only refresh analytics occasionally to save execution time
-    if (Math.random() < 0.1) {
-      await refreshAnalytics();
-    }
+    // Always refresh analytics, comments, and reactions — no more random gate
+    await refreshAnalytics();
+    await syncComments();
+    await syncReactions();
 
     // Self-ping: if there are upcoming queued posts, schedule another call
     // This works around Vercel Hobby's daily-only cron limitation
@@ -136,9 +137,14 @@ async function publishPost(post) {
 }
 
 async function refreshAnalytics() {
-  const publishedPosts = await dbAll(
-    `SELECT * FROM posts WHERE status = 'published' AND linkedin_post_id IS NOT NULL ORDER BY published_at DESC LIMIT 5`
-  );
+  const publishedPosts = await dbAll(`
+    SELECT p.* 
+    FROM posts p
+    LEFT JOIN analytics a ON p.id = a.post_id
+    WHERE p.status = 'published' AND p.linkedin_post_id IS NOT NULL AND p.linkedin_post_id != '' 
+    ORDER BY a.fetched_at ASC NULLS FIRST 
+    LIMIT 5
+  `);
 
   console.log(`📊 Refreshing analytics for ${publishedPosts.length} posts...`);
 
@@ -153,13 +159,21 @@ async function refreshAnalytics() {
         const likes = analytics.likesSummary?.totalLikes || 0;
         const comments = analytics.commentsSummary?.totalFirstLevelComments || 0;
         const shares = analytics.sharesSummary?.totalShares || 0;
+        const reactionsBreakdown = JSON.stringify(analytics.reactionsBreakdown || {});
 
         const existing = await dbGet('SELECT id FROM analytics WHERE id = ?', analyticsId);
         if (existing) {
-          await dbRun('UPDATE analytics SET likes = ?, comments = ?, shares = ?, fetched_at = CURRENT_TIMESTAMP WHERE id = ?', likes, comments, shares, analyticsId);
+          await dbRun(
+            'UPDATE analytics SET likes = ?, comments = ?, shares = ?, reactions_breakdown = ?, fetched_at = CURRENT_TIMESTAMP WHERE id = ?',
+            likes, comments, shares, reactionsBreakdown, analyticsId
+          );
         } else {
-          await dbRun('INSERT INTO analytics (id, post_id, likes, comments, shares, fetched_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)', analyticsId, post.id, likes, comments, shares);
+          await dbRun(
+            'INSERT INTO analytics (id, post_id, likes, comments, shares, reactions_breakdown, fetched_at, user_id) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)',
+            analyticsId, post.id, likes, comments, shares, reactionsBreakdown, post.user_id
+          );
         }
+        console.log(`  ✅ Analytics updated for post ${post.id}: ${likes} likes, ${comments} comments, ${shares} shares`);
       }
     } catch (error) {
       console.error(`Failed to refresh analytics for post ${post.id}:`, error.message);
@@ -167,5 +181,111 @@ async function refreshAnalytics() {
   }
 }
 
+async function syncComments() {
+  const publishedPosts = await dbAll(`
+    SELECT p.* 
+    FROM posts p
+    LEFT JOIN analytics a ON p.id = a.post_id
+    WHERE p.status = 'published' AND p.linkedin_post_id IS NOT NULL AND p.linkedin_post_id != '' 
+    ORDER BY a.fetched_at ASC NULLS FIRST 
+    LIMIT 5
+  `);
+
+  console.log(`💬 Syncing comments for ${publishedPosts.length} posts...`);
+
+  for (const post of publishedPosts) {
+    if (!(await linkedInAPI.isTokenValid(post.user_id))) {
+      continue;
+    }
+    try {
+      const comments = await linkedInAPI.getPostComments(post.user_id, post.linkedin_post_id);
+      if (!comments || comments.length === 0) continue;
+
+      let newCount = 0;
+      for (const comment of comments) {
+        // Skip if we already have this comment (de-duplicate by linkedin_comment_id)
+        if (comment.linkedin_comment_id) {
+          const existing = await dbGet(
+            'SELECT id FROM comments WHERE linkedin_comment_id = ? AND user_id = ?',
+            comment.linkedin_comment_id, post.user_id
+          );
+          if (existing) continue;
+        }
+
+        const id = uuidv4();
+        await dbRun(
+          `INSERT INTO comments (id, post_id, linkedin_comment_id, author_name, author_headline, content, created_at, user_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          id, post.id,
+          comment.linkedin_comment_id || null,
+          comment.author_name || 'LinkedIn User',
+          '',
+          comment.content || '',
+          comment.created_at || new Date().toISOString(),
+          post.user_id
+        );
+        newCount++;
+      }
+
+      if (newCount > 0) {
+        await logActivity('comments_synced', 'post', post.id, `Synced ${newCount} new comments from LinkedIn`, post.user_id);
+        console.log(`  💬 Synced ${newCount} new comments for post ${post.id}`);
+      }
+    } catch (error) {
+      console.error(`Failed to sync comments for post ${post.id}:`, error.message);
+    }
+  }
+}
+
+async function syncReactions() {
+  const publishedPosts = await dbAll(`
+    SELECT p.* 
+    FROM posts p
+    LEFT JOIN analytics a ON p.id = a.post_id
+    WHERE p.status = 'published' AND p.linkedin_post_id IS NOT NULL AND p.linkedin_post_id != '' 
+    ORDER BY a.fetched_at ASC NULLS FIRST 
+    LIMIT 5
+  `);
+
+  console.log(`❤️ Syncing reactions for ${publishedPosts.length} posts...`);
+
+  for (const post of publishedPosts) {
+    if (!(await linkedInAPI.isTokenValid(post.user_id))) {
+      continue;
+    }
+    try {
+      const reactions = await linkedInAPI.getPostReactions(post.user_id, post.linkedin_post_id);
+      if (!reactions || reactions.length === 0) continue;
+
+      // Build breakdown
+      const breakdown = {};
+      reactions.forEach(r => {
+        const type = r.type || 'LIKE';
+        breakdown[type] = (breakdown[type] || 0) + 1;
+      });
+
+      const analyticsId = `analytics_${post.id}`;
+      const existing = await dbGet('SELECT id FROM analytics WHERE id = ?', analyticsId);
+      if (existing) {
+        await dbRun(
+          'UPDATE analytics SET reactions_breakdown = ?, likes = ?, fetched_at = CURRENT_TIMESTAMP WHERE id = ?',
+          JSON.stringify(breakdown), reactions.length, analyticsId
+        );
+      } else {
+        await dbRun(
+          'INSERT INTO analytics (id, post_id, likes, reactions_breakdown, fetched_at, user_id) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)',
+          analyticsId, post.id, reactions.length, JSON.stringify(breakdown), post.user_id
+        );
+      }
+      console.log(`  ❤️ Synced ${reactions.length} reactions for post ${post.id}`);
+    } catch (error) {
+      console.error(`Failed to sync reactions for post ${post.id}:`, error.message);
+    }
+  }
+}
+
 module.exports = router;
 module.exports.processPostQueue = processPostQueue;
+module.exports.refreshAnalytics = refreshAnalytics;
+module.exports.syncComments = syncComments;
+module.exports.syncReactions = syncReactions;

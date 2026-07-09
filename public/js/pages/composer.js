@@ -529,7 +529,9 @@ const ComposerPage = {
       if (typeEl) typeEl.value = post.post_type;
       if (scheduleEl && post.scheduled_at) {
         const dt = new Date(post.scheduled_at);
-        scheduleEl.value = dt.toISOString().slice(0, 16);
+        const tzOffset = dt.getTimezoneOffset() * 60000;
+        const localISOTime = (new Date(dt.getTime() - tzOffset)).toISOString().slice(0, 16);
+        scheduleEl.value = localISOTime;
       }
       if (tagsEl && post.tags?.length) {
         tagsEl.value = post.tags.join(', ');

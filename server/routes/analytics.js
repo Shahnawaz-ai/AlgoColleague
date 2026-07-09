@@ -142,4 +142,43 @@ router.get('/trend', async (req, res) => {
   }
 });
 
+// Manual full refresh — triggers analytics, comments, and reactions sync
+router.post('/refresh', async (req, res) => {
+  try {
+    const { refreshAnalytics, syncComments, syncReactions } = require('./cron');
+    
+    await refreshAnalytics();
+    await syncComments();
+    await syncReactions();
+    
+    // Re-fetch the overview to return fresh data
+    const userId = req.auth.userId;
+    const engagement = await dbGet(`
+      SELECT
+        COALESCE(SUM(a.likes), 0) as total_likes,
+        COALESCE(SUM(a.comments), 0) as total_comments,
+        COALESCE(SUM(a.shares), 0) as total_shares,
+        COALESCE(SUM(a.impressions), 0) as total_impressions
+      FROM analytics a
+      JOIN posts p ON a.post_id = p.id
+      WHERE p.user_id = ?
+    `, userId);
+    
+    const commentStats = {
+      total: (await dbGet('SELECT COUNT(*) as c FROM comments WHERE user_id = ?', userId))?.c || 0,
+      unreplied: (await dbGet('SELECT COUNT(*) as c FROM comments WHERE is_reply_sent = 0 AND user_id = ?', userId))?.c || 0,
+    };
+    
+    res.json({ 
+      success: true, 
+      message: 'Analytics, comments, and reactions refreshed',
+      engagement,
+      commentStats,
+    });
+  } catch (err) {
+    console.error('Manual refresh error:', err);
+    res.status(500).json({ error: 'Failed to refresh analytics: ' + err.message });
+  }
+});
+
 module.exports = router;

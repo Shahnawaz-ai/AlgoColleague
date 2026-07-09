@@ -57,38 +57,38 @@ router.get('/', async (req, res) => {
     const search = Array.isArray(req.query.search) ? req.query.search[0] : req.query.search;
     const limit = req.query.limit ? (Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit) : 50;
     const offset = req.query.offset ? (Array.isArray(req.query.offset) ? req.query.offset[0] : req.query.offset) : 0;
-    let query = 'SELECT * FROM posts WHERE user_id = ?';
+    let query = `SELECT p.*, a.likes as analytics_likes, a.comments as analytics_comments, a.shares as analytics_shares, a.impressions as analytics_impressions, a.reactions_breakdown as analytics_reactions_breakdown FROM posts p LEFT JOIN analytics a ON a.post_id = p.id WHERE p.user_id = ?`;
     let countQuery = 'SELECT COUNT(*) as count FROM posts WHERE user_id = ?';
     const params = [userId];
     const countParams = [userId];
 
     if (status) {
-      query += ' AND status = ?';
+      query += ' AND p.status = ?';
       countQuery += ' AND status = ?';
       params.push(status);
       countParams.push(status);
     }
     if (search) {
-      query += ' AND content LIKE ?';
+      query += ' AND p.content LIKE ?';
       countQuery += ' AND content LIKE ?';
       const searchVal = `%${search}%`;
       params.push(searchVal);
       countParams.push(searchVal);
     }
     if (from) {
-      query += ' AND (scheduled_at >= ? OR published_at >= ?)';
+      query += ' AND (p.scheduled_at >= ? OR p.published_at >= ?)';
       countQuery += ' AND (scheduled_at >= ? OR published_at >= ?)';
       params.push(from, from);
       countParams.push(from, from);
     }
     if (to) {
-      query += ' AND (scheduled_at <= ? OR published_at <= ?)';
+      query += ' AND (p.scheduled_at <= ? OR p.published_at <= ?)';
       countQuery += ' AND (scheduled_at <= ? OR published_at <= ?)';
       params.push(to, to);
       countParams.push(to, to);
     }
 
-    query += ' ORDER BY COALESCE(scheduled_at, created_at) DESC LIMIT ? OFFSET ?';
+    query += ' ORDER BY COALESCE(p.scheduled_at, p.created_at) DESC LIMIT ? OFFSET ?';
     params.push(parseInt(limit), parseInt(offset));
 
     const posts = await dbAll(query, ...params);
@@ -99,6 +99,13 @@ router.get('/', async (req, res) => {
       ...p,
       media_urls: JSON.parse(p.media_urls || '[]'),
       tags: JSON.parse(p.tags || '[]'),
+      analytics: {
+        likes: p.analytics_likes || 0,
+        comments: p.analytics_comments || 0,
+        shares: p.analytics_shares || 0,
+        impressions: p.analytics_impressions || 0,
+        reactions_breakdown: JSON.parse(p.analytics_reactions_breakdown || '{}'),
+      },
     }));
 
     res.json({ posts: parsed, total });
@@ -280,6 +287,83 @@ router.post('/:id/upload-image', upload.single('image'), async (req, res) => {
     res.json({ success: true, filename: req.file.filename, path: req.file.path, mediaUrls });
   } catch (err) {
     res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// Refresh analytics for a single post on-demand
+router.post('/:id/refresh-analytics', async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const post = await dbGet('SELECT * FROM posts WHERE id = ? AND user_id = ?', req.params.id, userId);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+    if (!post.linkedin_post_id) return res.status(400).json({ error: 'Post has no LinkedIn ID — not yet published?' });
+
+    if (!(await linkedInAPI.isTokenValid(userId))) {
+      return res.status(401).json({ error: 'LinkedIn token expired. Please reconnect.' });
+    }
+
+    // Fetch fresh analytics
+    const analytics = await linkedInAPI.getPostAnalytics(userId, post.linkedin_post_id);
+    const comments = await linkedInAPI.getPostComments(userId, post.linkedin_post_id);
+    const reactions = await linkedInAPI.getPostReactions(userId, post.linkedin_post_id);
+
+    // Store analytics
+    if (analytics) {
+      const analyticsId = `analytics_${post.id}`;
+      const likes = analytics.likesSummary?.totalLikes || 0;
+      const commentsCount = analytics.commentsSummary?.totalFirstLevelComments || 0;
+      const shares = analytics.sharesSummary?.totalShares || 0;
+      const reactionsBreakdown = JSON.stringify(analytics.reactionsBreakdown || {});
+
+      const existing = await dbGet('SELECT id FROM analytics WHERE id = ?', analyticsId);
+      if (existing) {
+        await dbRun(
+          'UPDATE analytics SET likes = ?, comments = ?, shares = ?, reactions_breakdown = ?, fetched_at = CURRENT_TIMESTAMP WHERE id = ?',
+          likes, commentsCount, shares, reactionsBreakdown, analyticsId
+        );
+      } else {
+        await dbRun(
+          'INSERT INTO analytics (id, post_id, likes, comments, shares, reactions_breakdown, fetched_at, user_id) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)',
+          analyticsId, post.id, likes, commentsCount, shares, reactionsBreakdown, userId
+        );
+      }
+    }
+
+    // Store new comments (de-duplicated)
+    let newComments = 0;
+    const { v4: uuidv4 } = require('uuid');
+    for (const comment of comments) {
+      if (comment.linkedin_comment_id) {
+        const existing = await dbGet(
+          'SELECT id FROM comments WHERE linkedin_comment_id = ? AND user_id = ?',
+          comment.linkedin_comment_id, userId
+        );
+        if (existing) continue;
+      }
+      const id = uuidv4();
+      await dbRun(
+        `INSERT INTO comments (id, post_id, linkedin_comment_id, author_name, author_headline, content, created_at, user_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, post.id,
+        comment.linkedin_comment_id || null,
+        comment.author_name || 'LinkedIn User',
+        '',
+        comment.content || '',
+        comment.created_at || new Date().toISOString(),
+        userId
+      );
+      newComments++;
+    }
+
+    res.json({
+      success: true,
+      analytics: analytics || {},
+      newComments,
+      reactionsCount: reactions.length,
+    });
+  } catch (error) {
+    console.error('Refresh analytics error:', error);
+    res.status(500).json({ error: error.message || 'Failed to refresh analytics' });
   }
 });
 

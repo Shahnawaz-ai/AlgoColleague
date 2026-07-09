@@ -3,6 +3,9 @@
    ================================================================ */
 
 const DashboardPage = {
+  refreshing: false,
+  pollInterval: null,
+
   async render() {
     const container = document.getElementById('page-container');
 
@@ -26,10 +29,15 @@ const DashboardPage = {
             <h1 class="page-title" style="font-size: 2rem; background: linear-gradient(135deg, var(--text-primary), var(--text-muted)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Good ${new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'} 👋</h1>
             <p class="page-subtitle" style="margin-top: 4px;">Welcome to your Algo Colleague automation hub.</p>
           </div>
-          <button class="btn btn-primary" onclick="App.navigate('composer')" style="padding: 10px 20px; box-shadow: var(--shadow-glow);">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;"><path d="M12 5v14M5 12h14"/></svg>
-            New Post
-          </button>
+          <div style="display:flex; gap:10px;">
+            <button class="btn btn-secondary" id="dashboard-refresh-btn" onclick="DashboardPage.refreshData()" style="padding: 10px 20px;">
+              🔄 Refresh
+            </button>
+            <button class="btn btn-primary" onclick="App.navigate('composer')" style="padding: 10px 20px; box-shadow: var(--shadow-glow);">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;"><path d="M12 5v14M5 12h14"/></svg>
+              New Post
+            </button>
+          </div>
         </div>
         
         <div class="page-content">
@@ -59,21 +67,21 @@ const DashboardPage = {
               <div style="font-size: 0.85rem; color: var(--text-muted);">In your queue</div>
             </div>
 
-            <div class="stat-card" style="display:flex; flex-direction:column; justify-content:space-between;">
+            <div class="stat-card" style="display:flex; flex-direction:column; justify-content:space-between; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background='transparent'" onclick="App.navigate('posts'); setTimeout(() => PostsPage.setFilter('draft'), 100)">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
-                <div class="stat-card-label" style="font-weight: 600; font-size: 0.9rem; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted);">Reactions</div>
-                <div class="stat-card-icon" style="background: rgba(236,72,153,0.1); padding: 8px; border-radius: 8px; font-size: 1.2rem;">❤️</div>
+                <div class="stat-card-label" style="font-weight: 600; font-size: 0.9rem; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted);">Drafts</div>
+                <div class="stat-card-icon" style="background: rgba(245,158,11,0.1); padding: 8px; border-radius: 8px; font-size: 1.2rem;">📝</div>
               </div>
-              <div class="stat-card-value" style="font-size: 2.5rem; font-weight: 800; color: var(--text-primary); margin-bottom:4px;">${data.engagement.total_likes}</div>
-              <div style="font-size: 0.85rem; color: var(--text-muted);">Lifetime total</div>
+              <div class="stat-card-value" style="font-size: 2.5rem; font-weight: 800; color: var(--text-primary); margin-bottom:4px;">${data.stats.draftPosts}</div>
+              <div style="font-size: 0.85rem; color: var(--text-muted);">Pending review</div>
             </div>
 
             <div class="stat-card" style="display:flex; flex-direction:column; justify-content:space-between;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
-                <div class="stat-card-label" style="font-weight: 600; font-size: 0.9rem; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted);">Comments</div>
-                <div class="stat-card-icon" style="background: rgba(139,92,246,0.1); padding: 8px; border-radius: 8px; font-size: 1.2rem;">💬</div>
+                <div class="stat-card-label" style="font-weight: 600; font-size: 0.9rem; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted);">Total Posts</div>
+                <div class="stat-card-icon" style="background: rgba(139,92,246,0.1); padding: 8px; border-radius: 8px; font-size: 1.2rem;">📚</div>
               </div>
-              <div class="stat-card-value" style="font-size: 2.5rem; font-weight: 800; color: var(--text-primary); margin-bottom:4px;">${data.engagement.total_comments}</div>
+              <div class="stat-card-value" style="font-size: 2.5rem; font-weight: 800; color: var(--text-primary); margin-bottom:4px;">${data.stats.totalPosts}</div>
               <div style="font-size: 0.85rem; color: var(--text-muted);">Lifetime total</div>
             </div>
           </div>
@@ -133,15 +141,18 @@ const DashboardPage = {
                       log.action.includes('comment') ? 'comment' : 'default';
                     const iconEmoji = log.action.includes('post') ? '📤' :
                       log.action.includes('auth') ? '🔐' :
-                      log.action.includes('settings') ? '⚙️' : '⚡';
+                      log.action.includes('settings') ? '⚙️' :
+                      log.action.includes('comment') ? '💬' : '⚡';
                       
                     const iconColor = log.action.includes('post') ? 'rgba(59,130,246,0.1)' :
                       log.action.includes('auth') ? 'rgba(16,185,129,0.1)' :
-                      log.action.includes('settings') ? 'rgba(139,92,246,0.1)' : 'rgba(245,158,11,0.1)';
+                      log.action.includes('settings') ? 'rgba(139,92,246,0.1)' :
+                      log.action.includes('comment') ? 'rgba(139,92,246,0.1)' : 'rgba(245,158,11,0.1)';
                       
                     const iconTextColor = log.action.includes('post') ? '#3b82f6' :
                       log.action.includes('auth') ? '#10b981' :
-                      log.action.includes('settings') ? '#8b5cf6' : '#f59e0b';
+                      log.action.includes('settings') ? '#8b5cf6' :
+                      log.action.includes('comment') ? '#8b5cf6' : '#f59e0b';
 
                     return `
                       <div class="activity-item" style="padding:16px; border-radius:8px; border-bottom:1px solid transparent; transition:background 0.2s;" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background='transparent'">
@@ -169,12 +180,12 @@ const DashboardPage = {
                 <div style="font-size:1.5rem; font-weight:800; color:var(--text-primary)">${data.stats.postsThisMonth}</div>
               </div>
               <div>
-                <div class="text-xs text-muted mb-sm">Total Shares</div>
-                <div style="font-size:1.5rem; font-weight:800; color:var(--text-primary)">${data.engagement.total_shares}</div>
+                <div class="text-xs text-muted mb-sm">Total Published</div>
+                <div style="font-size:1.5rem; font-weight:800; color:var(--text-primary)">${data.stats.publishedPosts}</div>
               </div>
               <div>
-                <div class="text-xs text-muted mb-sm">Avg Engagement</div>
-                <div style="font-size:1.5rem; font-weight:800; color:var(--text-primary)">${(data.engagement.avg_engagement_rate * 100).toFixed(1)}%</div>
+                <div class="text-xs text-muted mb-sm">Total Scheduled</div>
+                <div style="font-size:1.5rem; font-weight:800; color:var(--text-primary)">${data.stats.scheduledPosts}</div>
               </div>
               <div>
                 <div class="text-xs text-muted mb-sm">Drafts</div>
@@ -188,6 +199,15 @@ const DashboardPage = {
           </div>
         </div>
       `;
+
+      if (this.pollInterval) clearInterval(this.pollInterval);
+      this.pollInterval = setInterval(() => {
+        if (App.currentPage !== 'dashboard') {
+          clearInterval(this.pollInterval);
+          return;
+        }
+        this.pollUpdates();
+      }, 1000);
     } catch (error) {
       container.innerHTML = `
         <div class="page-header"><h1 class="page-title">📊 Dashboard</h1></div>
@@ -202,4 +222,40 @@ const DashboardPage = {
       `;
     }
   },
+
+  async refreshData() {
+    if (this.refreshing) return;
+    this.refreshing = true;
+    const btn = document.getElementById('dashboard-refresh-btn');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Syncing...';
+    }
+
+    try {
+      await App.api('/api/analytics/refresh', { method: 'POST' });
+      App.toast('✅ Data refreshed from LinkedIn!', 'success');
+      await this.render();
+    } catch (error) {
+      App.toast(`Refresh failed: ${error.message}`, 'error');
+    } finally {
+      this.refreshing = false;
+    }
+  },
+
+  async pollUpdates() {
+    if (this.refreshing) return;
+    try {
+      const data = await App.api('/api/analytics/overview');
+      const vals = document.querySelectorAll('.stat-card-value');
+      if (vals.length >= 4) {
+        vals[0].textContent = data.stats.publishedPosts;
+        vals[1].textContent = data.stats.scheduledPosts;
+        vals[2].textContent = data.stats.draftPosts;
+        vals[3].textContent = data.stats.totalPosts;
+      }
+    } catch (e) {
+      // Ignore polling errors to prevent spam
+    }
+  }
 };

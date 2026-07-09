@@ -4,6 +4,7 @@
 
 const CommentsPage = {
   currentFilter: 'unreplied',
+  syncing: false,
 
   async render() {
     const container = document.getElementById('page-container');
@@ -17,9 +18,14 @@ const CommentsPage = {
       const { comments, stats } = commentsData;
 
       container.innerHTML = `
-        <div class="page-header">
-          <h1 class="page-title">💬 Comment Manager</h1>
-          <p class="page-subtitle">Track and respond to comments across your LinkedIn posts</p>
+        <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-end;">
+          <div>
+            <h1 class="page-title">💬 Comment Manager</h1>
+            <p class="page-subtitle">Track and respond to comments across your LinkedIn posts</p>
+          </div>
+          <button class="btn btn-primary" id="sync-comments-btn" onclick="CommentsPage.syncFromLinkedIn()" style="padding:10px 20px;">
+            🔄 Sync from LinkedIn
+          </button>
         </div>
         <div class="page-content">
 
@@ -63,8 +69,11 @@ const CommentsPage = {
                 <div class="empty-state">
                   <div class="empty-state-icon">💬</div>
                   <div class="empty-state-title">No comments yet</div>
-                  <div class="empty-state-text">Comments from your LinkedIn posts will appear here once synced.<br>You can also add test comments manually.</div>
-                  <button class="btn btn-secondary mt-md" onclick="CommentsPage.addTestComment()">Add Test Comment</button>
+                  <div class="empty-state-text">Comments from your LinkedIn posts will appear here once synced.<br>Click "Sync from LinkedIn" to pull the latest comments, or add a test comment manually.</div>
+                  <div style="display:flex; gap:10px; margin-top:16px; justify-content:center; flex-wrap:wrap;">
+                    <button class="btn btn-primary" onclick="CommentsPage.syncFromLinkedIn()">🔄 Sync from LinkedIn</button>
+                    <button class="btn btn-secondary" onclick="CommentsPage.addTestComment()">Add Test Comment</button>
+                  </div>
                 </div>
               ` : `
                 <div id="comments-list">
@@ -136,7 +145,7 @@ const CommentsPage = {
     } catch (error) {
       document.getElementById('page-container').innerHTML = `
         <div class="page-header"><h1 class="page-title">💬 Comments</h1></div>
-        <div class="page-content"><div class="empty-state"><div class="empty-state-icon">❌</div><div class="empty-state-title">Failed to load comments</div><div class="empty-state-text">${error.message}</div></div></div>
+        <div class="page-content"><div class="empty-state"><div class="empty-state-icon">❌</div><div class="empty-state-title">Failed to load comments</div><div class="empty-state-text">${error.message}</div><button class="btn btn-primary mt-md" onclick="CommentsPage.render()">Retry</button></div></div>
       `;
     }
   },
@@ -188,9 +197,40 @@ const CommentsPage = {
       if (listEl) {
         listEl.innerHTML = this.renderCommentsList(data.comments);
       }
-      // Update tab states
-      document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
-    } catch (e) { /* ignore */ }
+      // Update tab active states correctly
+      document.querySelectorAll('.tabs .tab').forEach(t => {
+        t.classList.remove('active');
+      });
+      // Find and activate the correct tab
+      const tabs = document.querySelectorAll('.tabs .tab');
+      const filterMap = { 'unreplied': 0, 'all': 1, 'replied': 2 };
+      const idx = filterMap[filter];
+      if (tabs[idx]) tabs[idx].classList.add('active');
+    } catch (e) {
+      App.toast('Failed to refresh comments list', 'error');
+    }
+  },
+
+  async syncFromLinkedIn() {
+    if (this.syncing) return;
+    this.syncing = true;
+    const btn = document.getElementById('sync-comments-btn');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Syncing...';
+    }
+
+    try {
+      const result = await App.api('/api/analytics/refresh', { method: 'POST' });
+      const newComments = result.commentStats?.total || 0;
+      App.toast(`✅ Sync complete! ${newComments} total comments in your inbox.`, 'success', 5000);
+      // Re-render to show new comments
+      await this.render();
+    } catch (error) {
+      App.toast(`Sync failed: ${error.message}`, 'error');
+    } finally {
+      this.syncing = false;
+    }
   },
 
   replyToComment(commentId, authorName) {

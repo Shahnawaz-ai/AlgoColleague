@@ -43,8 +43,14 @@ const App = {
       }, 400);
     }
 
-    // Refresh auth status periodically
+    // Refresh auth status periodically (60s) and ping cron rapidly (5s)
     setInterval(() => this.checkAuth(), 60000);
+    setInterval(() => this.pingCron(), 5000);
+  },
+
+  // --- Cron ---
+  pingCron() {
+    fetch('/api/cron').catch(() => {});
   },
 
   // --- Auth ---
@@ -113,7 +119,6 @@ const App = {
       composer: ComposerPage,
       posts: PostsPage,
       calendar: CalendarPage,
-      analytics: AnalyticsPage,
       connections: ConnectionsPage,
       templates: TemplatesPage,
       settings: SettingsPage,
